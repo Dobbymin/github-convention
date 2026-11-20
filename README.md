@@ -37,6 +37,21 @@ It is designed around one principle:
 - No real Project/GitHub Issue is created by reading this specification.
 - The repository's canonical Project Skill source is `.agents/skills/github-convention/` and is Git-tracked. Generated compatibility copies are derived files and should be ignored by Git.
 
+## Development
+
+The repository is an npm workspace and requires Node.js 22 or later.
+
+```bash
+npm ci
+npm run build
+npm run format:check
+npm run lint
+npm run typecheck
+npm test
+```
+
+`packages/cli` and `packages/skill` keep independent package versions. The CLI validates the Skill compatibility range before it executes.
+
 ## Status
 
-This is an implementation-ready **architecture and product specification**, not an implementation. Platform paths and discovery behavior can evolve; the CLI must validate the installed agent's actual capabilities and avoid relying on a hard-coded assumption when detection is ambiguous.
+The package foundation is in progress. Platform paths and discovery behavior can evolve; the CLI must validate the installed agent's actual capabilities and avoid relying on a hard-coded assumption when detection is ambiguous.

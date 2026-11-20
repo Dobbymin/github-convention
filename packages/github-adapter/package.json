@@ -1,0 +1,12 @@
+{
+  "name": "@github-convention/github-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "dependencies": {
+    "@github-convention/core": "0.1.0"
+  }
+}

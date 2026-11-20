@@ -1,0 +1,8 @@
+{
+  "name": "@github-convention/skill",
+  "version": "0.1.0",
+  "private": true,
+  "githubConvention": {
+    "compatibleCli": "^0.1.0"
+  }
+}

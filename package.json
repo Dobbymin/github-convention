@@ -1,0 +1,29 @@
+{
+  "name": "github-convention",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "prepare": "node scripts/setup-git-hooks.mjs",
+    "build": "tsc -b tsconfig.build.json",
+    "format:check": "prettier --check --ignore-path .prettierignore \"package.json\" \"tsconfig*.json\" \"eslint.config.mjs\" \"packages/**/*.ts\" \"packages/**/package.json\"",
+    "lint": "eslint packages --max-warnings=0",
+    "typecheck": "tsc -b tsconfig.build.json --pretty false",
+    "test": "npm run build && node --test packages/core/dist/compatibility.test.js",
+    "audit": "npm audit --omit=dev --audit-level=high"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@typescript-eslint/eslint-plugin": "^8.73.0",
+    "@typescript-eslint/parser": "^8.73.0",
+    "eslint": "^10.15.0",
+    "prettier": "^3.10.1",
+    "typescript": "^6.0.3"
+  }
+}

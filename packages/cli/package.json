@@ -1,0 +1,12 @@
+{
+  "name": "@github-convention/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "github-convention": "./dist/index.js"
+  },
+  "dependencies": {
+    "@github-convention/core": "0.1.0"
+  }
+}
