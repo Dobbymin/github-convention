@@ -1,0 +1,60 @@
+{
+  "node_id": "N14",
+  "title": "Dependency scheduler and isolated workspace lifecycle",
+  "priority": "P1",
+  "prd_requirement_ids": [
+    "FR-ORCH-01",
+    "FR-ORCH-02",
+    "FR-ORCH-03"
+  ],
+  "objective": "Schedule ready tasks using hard dependency DAG and dynamic concurrency; use verified native workspace isolation or Orchestrator-owned Git Worktrees.",
+  "input": [
+    "N11 reconciled task readiness",
+    "N05 capability model",
+    "PRD Journeys 3-4",
+    "SPEC Sections 10-11"
+  ],
+  "expected_output": [
+    "ready/blocked DAG scheduler",
+    "resource/conflict-aware concurrency calculation",
+    "workspace adapter and Worktree lifecycle"
+  ],
+  "hard_dependencies": [
+    "N05",
+    "N13"
+  ],
+  "soft_dependencies": [],
+  "allowed_files": [
+    "packages/core/scheduler/**",
+    "packages/agent-adapters/workspace/**",
+    "packages/core/workspace/**"
+  ],
+  "acceptance_criteria": [
+    "Main-only, sequential, and optional parallel modes choose the simplest safe execution.",
+    "Concurrency never exceeds configured/runtime limits and decreases for resource, dependency, or file overlap risk.",
+    "Unknown native isolation is unsupported; fallback Worktrees are distinct and Orchestrator-owned."
+  ],
+  "verification_commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint"
+  ],
+  "expected_evidence": [
+    "DAG scheduler fixtures",
+    "workspace path/inode isolation logs",
+    "native capability/fallback tests"
+  ],
+  "execution_owner": "Main Agent",
+  "parallel_execution_eligible": false,
+  "risk_classification": "Recoverable",
+  "undo_classification": "Preserve unknown/uncommitted workspace changes; remove only verified node-owned temporary worktrees.",
+  "approval_requirements": [
+    "GitHub Issue approval before implementation",
+    "Approval before deleting ambiguous workspaces."
+  ],
+  "retry_policy": "Initial attempt plus at most 2 retries; halt cleanup on ownership uncertainty.",
+  "current_status": "blocked",
+  "blocking_reasons": [
+    "N05 and N11 required."
+  ]
+}

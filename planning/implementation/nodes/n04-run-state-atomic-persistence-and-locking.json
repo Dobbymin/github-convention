@@ -1,0 +1,66 @@
+{
+  "node_id": "N04",
+  "title": "Run State, atomic persistence, and locking",
+  "priority": "P0",
+  "prd_requirement_ids": [
+    "FR-STATE-01",
+    "FR-STATE-02",
+    "FR-STATE-03",
+    "FR-STATE-04",
+    "FR-STATE-07",
+    "FR-STATE-08"
+  ],
+  "objective": "Implement per-run schema-validated State, Orchestrator-only writes, atomic transitions, locking, remote/local authority boundaries, no telemetry, and secret redaction.",
+  "input": [
+    "N01 package/runtime baseline",
+    "schemas/state.schema.json",
+    "examples/state.json",
+    "PRD Sections 8.6, 12",
+    "SPEC Sections 14, 19"
+  ],
+  "expected_output": [
+    "State lifecycle and atomic writer",
+    "cross-platform project/run lock",
+    "redacted bounded local log boundary",
+    "telemetry-free dependency/network policy"
+  ],
+  "hard_dependencies": [
+    "N01"
+  ],
+  "soft_dependencies": [],
+  "allowed_files": [
+    "packages/core/state/**",
+    "packages/core/lock/**",
+    "packages/core/logging/**",
+    "schemas/state.schema.json",
+    "examples/state.json"
+  ],
+  "acceptance_criteria": [
+    "Each run State validates schema/version and persists every transition atomically under a lock.",
+    "Concurrent writer receives LOCK_BUSY; interrupted writes never leave partial JSON.",
+    "Only Orchestrator owns shared State writes; remote status is reconciled from GitHub before dependent actions.",
+    "No telemetry/analytics path exists and secret fixtures never appear in outputs/logs."
+  ],
+  "verification_commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint"
+  ],
+  "expected_evidence": [
+    "kill/restart and concurrent-writer test output",
+    "JSON integrity checks",
+    "secret-redaction fixtures and dependency/network audit"
+  ],
+  "execution_owner": "Main Agent",
+  "parallel_execution_eligible": true,
+  "risk_classification": "Recoverable",
+  "undo_classification": "Preserve state and logs; only remove test-owned temporary files after ownership checks.",
+  "approval_requirements": [
+    "GitHub Issue approval before implementation"
+  ],
+  "retry_policy": "Initial attempt plus at most 2 retries; stop early for data-integrity uncertainty.",
+  "current_status": "blocked",
+  "blocking_reasons": [
+    "N01 and approved Issue required."
+  ]
+}

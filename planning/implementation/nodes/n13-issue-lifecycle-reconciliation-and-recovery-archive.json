@@ -1,0 +1,64 @@
+{
+  "node_id": "N13",
+  "title": "Issue lifecycle reconciliation and recovery archive",
+  "priority": "P1",
+  "prd_requirement_ids": [
+    "FR-GH-09",
+    "FR-GH-10",
+    "FR-GH-11",
+    "FR-STATE-06"
+  ],
+  "objective": "Reconcile Parent/child lifecycle and task readiness from fresh GitHub state, create approved follow-up tasks, and archive completed run state safely.",
+  "input": [
+    "N04 State/lock lifecycle",
+    "N10 Issue/dependency operations",
+    "fresh GitHub Issue/PR state",
+    "PRD Sections 8.3, 8.6"
+  ],
+  "expected_output": [
+    "Parent close/reopen reconciler",
+    "dependency/merge readiness gate",
+    "approval-gated follow-up flow",
+    "archive/restore/retention logic"
+  ],
+  "hard_dependencies": [
+    "N04",
+    "N12"
+  ],
+  "soft_dependencies": [],
+  "allowed_files": [
+    "packages/github-adapter/lifecycle/**",
+    "packages/core/recovery/**",
+    "packages/core/archive/**",
+    "packages/cli/state/**"
+  ],
+  "acceptance_criteria": [
+    "Parent closes only when all children close and reopens when a new child is added.",
+    "Code-dependent tasks wait for upstream PR merge and linked Issue closure; stable documented contracts may support parallel work.",
+    "Follow-up Issue links to original and is created only after user approval with impact-based priority.",
+    "Completed runs archive with default 30-day retention; active or pending-draft state is not deleted."
+  ],
+  "verification_commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint"
+  ],
+  "expected_evidence": [
+    "reconciliation state-transition tests",
+    "kill/restart recovery logs",
+    "archive retention/restore fixtures"
+  ],
+  "execution_owner": "Main Agent",
+  "parallel_execution_eligible": false,
+  "risk_classification": "Recoverable",
+  "undo_classification": "Archive before cleanup; never remove active or unowned state.",
+  "approval_requirements": [
+    "GitHub Issue approval before implementation",
+    "Explicit approval before creating follow-up Issues."
+  ],
+  "retry_policy": "Initial attempt plus at most 2 retries; repeated identical remote mismatch escalates.",
+  "current_status": "blocked",
+  "blocking_reasons": [
+    "N04 and N10 required."
+  ]
+}

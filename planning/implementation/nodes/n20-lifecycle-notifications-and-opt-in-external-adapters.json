@@ -1,0 +1,59 @@
+{
+  "node_id": "N20",
+  "title": "Lifecycle notifications and opt-in external adapters",
+  "priority": "P2",
+  "prd_requirement_ids": [
+    "FR-NOTIFY-01"
+  ],
+  "objective": "Surface required lifecycle events in the active Agent/CLI session and support optional external notification adapters without a daemon.",
+  "input": [
+    "N04 State transitions",
+    "N13 lifecycle reconciliation",
+    "N16 PR/CI state",
+    "N18 deployment state",
+    "PRD FR-NOTIFY-01",
+    "SPEC Section 19"
+  ],
+  "expected_output": [
+    "active-session event notifications",
+    "opt-in external notification adapter contract"
+  ],
+  "hard_dependencies": [
+    "N04",
+    "N13",
+    "N16",
+    "N18"
+  ],
+  "soft_dependencies": [],
+  "allowed_files": [
+    "packages/core/notifications/**",
+    "packages/cli/notifications/**"
+  ],
+  "acceptance_criteria": [
+    "Start/finish, approval, repeated worker failure, unrecoverable CI, PR ready/Merge waiting, and deployment failure are surfaced.",
+    "External notification is opt-in and occurs only during active execution or configured workflow.",
+    "No background daemon is introduced."
+  ],
+  "verification_commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint"
+  ],
+  "expected_evidence": [
+    "event coverage contract tests",
+    "external adapter opt-in/no-send tests"
+  ],
+  "execution_owner": "Main Agent",
+  "parallel_execution_eligible": true,
+  "risk_classification": "Recoverable",
+  "undo_classification": "Disable only configured node-owned notification adapters; never send external messages without opt-in.",
+  "approval_requirements": [
+    "GitHub Issue approval before implementation.",
+    "Explicit opt-in and configuration before external notifications."
+  ],
+  "retry_policy": "Initial attempt plus at most 2 retries for local processing; external failures do not trigger duplicate sends without idempotency checks.",
+  "current_status": "blocked",
+  "blocking_reasons": [
+    "N04, N13, N16, N18 and approved Issue required."
+  ]
+}

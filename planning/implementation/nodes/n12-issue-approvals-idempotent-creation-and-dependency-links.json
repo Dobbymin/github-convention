@@ -1,0 +1,63 @@
+{
+  "node_id": "N12",
+  "title": "Issue approvals, idempotent creation, and dependency links",
+  "priority": "P1",
+  "prd_requirement_ids": [
+    "FR-GH-05",
+    "FR-GH-06",
+    "FR-GH-07",
+    "FR-GH-08"
+  ],
+  "objective": "Present Issue drafts by Parent, retain approval state, require explicit approval for each remote write, create Issues idempotently, and preserve hard blockers.",
+  "input": [
+    "N09 validated plan and fresh remote reads",
+    "N04 State API",
+    "docs/cli-contract.md",
+    "PRD Section 9"
+  ],
+  "expected_output": [
+    "group/individual draft approval flow",
+    "idempotent Issue creation",
+    "native dependency link operations"
+  ],
+  "hard_dependencies": [
+    "N04",
+    "N11"
+  ],
+  "soft_dependencies": [],
+  "allowed_files": [
+    "packages/github-adapter/issues/**",
+    "packages/github-adapter/dependencies/**",
+    "packages/core/approval/**",
+    "packages/cli/plan/**"
+  ],
+  "acceptance_criteria": [
+    "Group and individual approve/edit/reject/exclude are persisted; unapproved drafts remain local.",
+    "Only explicitly approved drafts create remote Issues.",
+    "Stable plan/task markers plus fresh remote checks prevent duplicate creation on retries/interruption.",
+    "Hard blockers use native GitHub dependencies; approved downstream work remains blocked if prerequisite is excluded/unapproved."
+  ],
+  "verification_commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint"
+  ],
+  "expected_evidence": [
+    "approval gate integration logs",
+    "lost-response fault-injection logs",
+    "dedicated test-repository Issue/dependency records"
+  ],
+  "execution_owner": "Main Agent",
+  "parallel_execution_eligible": false,
+  "risk_classification": "Irreversible",
+  "undo_classification": "Do not auto-delete created Issues; reconcile via stable markers and preserve audit evidence.",
+  "approval_requirements": [
+    "GitHub Issue approval before implementation",
+    "Explicit user approval for each GitHub Issue creation and remote dependency mutation."
+  ],
+  "retry_policy": "Initial attempt plus at most 2 retries; on ambiguous remote result, query and reconcile before retry.",
+  "current_status": "blocked",
+  "blocking_reasons": [
+    "N04, N09 and approved Issue required."
+  ]
+}

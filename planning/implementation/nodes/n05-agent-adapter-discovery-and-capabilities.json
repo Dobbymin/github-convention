@@ -1,0 +1,55 @@
+{
+  "node_id": "N05",
+  "title": "Agent adapter discovery and capabilities",
+  "priority": "P0",
+  "prd_requirement_ids": [
+    "FR-CLI-04"
+  ],
+  "objective": "Detect supported Agent candidates with confidence and expose verified install targets and capabilities without treating unknown capability as supported.",
+  "input": [
+    "N01 package/runtime baseline",
+    "docs/agent-adapters.md",
+    "PRD Sections 8.1, 16",
+    "SPEC Sections 5.1, 5.4"
+  ],
+  "expected_output": [
+    "adapter registry",
+    "confidence-based detection",
+    "normalized capability report"
+  ],
+  "hard_dependencies": [
+    "N01"
+  ],
+  "soft_dependencies": [],
+  "allowed_files": [
+    "packages/agent-adapters/**",
+    "docs/agent-adapters.md"
+  ],
+  "acceptance_criteria": [
+    "Detection distinguishes confirmed, probable, unknown, and not_found.",
+    "Only confirmed or explicitly selected probable targets can be modified.",
+    "Capabilities distinguish true/false/unknown; unknown is unsupported for execution decisions."
+  ],
+  "verification_commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint"
+  ],
+  "expected_evidence": [
+    "adapter detection fixtures",
+    "capability contract test output",
+    "doctor report fixtures"
+  ],
+  "execution_owner": "Main Agent",
+  "parallel_execution_eligible": true,
+  "risk_classification": "Reversible",
+  "undo_classification": "Revert adapter code/docs introduced by this node only.",
+  "approval_requirements": [
+    "GitHub Issue approval before implementation"
+  ],
+  "retry_policy": "Initial attempt plus at most 2 retries; repeated identical failure escalates.",
+  "current_status": "blocked",
+  "blocking_reasons": [
+    "N01 and approved Issue required."
+  ]
+}

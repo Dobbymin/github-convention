@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/github-convention/state.schema.json",
+  "title": "GitHub Convention Execution State",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "status", "createdAt", "updatedAt", "repository", "tasks", "approvals"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["planned", "awaiting_approval", "approved", "in_progress", "blocked", "failed", "completed", "archived", "cancelled"] },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "repository": {
+      "type": "object",
+      "required": ["root", "name", "defaultBranch"],
+      "properties": {
+        "root": { "type": "string" },
+        "owner": { "type": ["string", "null"] },
+        "name": { "type": "string" },
+        "defaultBranch": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "parentIssue": {
+      "type": ["object", "null"],
+      "properties": {
+        "number": { "type": "integer", "minimum": 1 },
+        "url": { "type": "string", "format": "uri" },
+        "status": { "enum": ["open", "closed", "unknown"] }
+      },
+      "additionalProperties": true
+    },
+    "approvals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["approvalId", "action", "status"],
+        "properties": {
+          "approvalId": { "type": "string" },
+          "action": { "type": "string" },
+          "status": { "enum": ["pending", "approved", "rejected", "expired", "unknown"] },
+          "approvedAt": { "type": ["string", "null"], "format": "date-time" },
+          "source": { "type": ["string", "null"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["stableId", "title", "status", "dependsOn"],
+        "properties": {
+          "stableId": { "type": "string" },
+          "issueNumber": { "type": ["integer", "null"], "minimum": 1 },
+          "title": { "type": "string" },
+          "status": { "enum": ["draft", "awaiting_approval", "approved", "ready", "blocked", "assigned", "in_progress", "review", "failed", "completed", "cancelled"] },
+          "dependsOn": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+          "worker": { "type": ["object", "null"] },
+          "workspace": { "type": ["object", "null"] },
+          "changedFiles": { "type": "array", "items": { "type": "string" } },
+          "tests": { "type": "object" },
+          "lastCheckpoint": { "type": ["string", "null"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "remoteSync": { "type": "object" },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": true
+}

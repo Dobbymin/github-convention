@@ -1,0 +1,44 @@
+schema_version: 1
+
+# Global defaults are inherited by a Project. Project Config may override
+# selected values; objects merge recursively and arrays replace completely.
+execution:
+  sub_agents: auto                 # auto | enabled | disabled
+  max_parallel_agents: 3           # user-configurable cap; runtime may lower it
+  retry:
+    worker_max_retries: 2          # retries after the initial attempt
+    code_ci_max_retries: 2
+    transient_ci_max_retries: 3
+
+archive:
+  retention_days: 30
+  auto_cleanup_on_cli_start: true
+
+github:
+  auth_preference: gh               # gh first; connected Agent tool fallback
+  default_branch: detect
+  create_draft_pr: false
+  require_issue_approval: true
+  require_release_approval: true
+
+quality:
+  reuse_existing_tools: true
+  require_secret_scan: true
+  secret_scanner_install_requires_approval: true
+  self_review_required_before_pr: true
+
+notifications:
+  session: true
+  external:
+    enabled: false
+    provider: null
+
+privacy:
+  telemetry: false
+
+# Example Project overrides only a few values:
+# execution:
+#   max_parallel_agents: 2
+# quality:
+#   extra_checks:
+#     - "npm run contract:test"

@@ -1,0 +1,63 @@
+{
+  "node_id": "N03",
+  "title": "Configuration schema, merge, and migrations",
+  "priority": "P0",
+  "prd_requirement_ids": [
+    "FR-CFG-01",
+    "FR-CFG-02",
+    "FR-CFG-03",
+    "FR-CFG-04",
+    "FR-CFG-05"
+  ],
+  "objective": "Implement versioned Global/Project config loading, merge/validation rules, immutable safety policy, and backup-first schema migration.",
+  "input": [
+    "N01 package/runtime baseline",
+    "schemas/config.schema.json",
+    "examples/config.yaml",
+    "PRD Sections 8.2, 12",
+    "docs/decision-register.md"
+  ],
+  "expected_output": [
+    "Config parser/validator",
+    "recursive merge and immutable policy enforcement",
+    "staged backup-first migration logic"
+  ],
+  "hard_dependencies": [
+    "N01"
+  ],
+  "soft_dependencies": [],
+  "allowed_files": [
+    "packages/core/config/**",
+    "schemas/config.schema.json",
+    "examples/config.yaml"
+  ],
+  "acceptance_criteria": [
+    "Project values override only supplied keys; objects merge recursively and arrays replace.",
+    "Safety invariants cannot be disabled by config.",
+    "Invalid known keys block before side effects; unknown keys warn.",
+    "Migration validates in staging, preserves backup, and rolls back on failure; semantic conflicts require approval."
+  ],
+  "verification_commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint"
+  ],
+  "expected_evidence": [
+    "merge/validation/migration test output",
+    "backup/rollback fixtures",
+    "schema validation results"
+  ],
+  "execution_owner": "Main Agent",
+  "parallel_execution_eligible": true,
+  "risk_classification": "Recoverable",
+  "undo_classification": "Keep prior config and migration backup; restore only node-owned staged files.",
+  "approval_requirements": [
+    "GitHub Issue approval before implementation",
+    "User approval for unresolved semantic migration conflicts."
+  ],
+  "retry_policy": "Initial attempt plus at most 2 retries; repeated identical failure escalates.",
+  "current_status": "blocked",
+  "blocking_reasons": [
+    "N01 and approved Issue required."
+  ]
+}

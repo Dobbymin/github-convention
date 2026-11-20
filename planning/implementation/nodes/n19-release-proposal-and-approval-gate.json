@@ -1,0 +1,59 @@
+{
+  "node_id": "N19",
+  "title": "Release proposal and approval gate",
+  "priority": "P2",
+  "prd_requirement_ids": [
+    "FR-REL-01",
+    "FR-REL-02"
+  ],
+  "objective": "Respect repository release policy or propose SemVer, Breaking Changes, CHANGELOG, and Release Notes, then require explicit approval before Tag/Release creation.",
+  "input": [
+    "N09 verified release artifacts",
+    "N16 merged PR changes",
+    "repository release policy",
+    "PRD FR-REL-01/02",
+    "SPEC Section 15.2"
+  ],
+  "expected_output": [
+    "version and release-note proposal",
+    "approval-gated Tag/GitHub Release operation"
+  ],
+  "hard_dependencies": [
+    "N09",
+    "N16"
+  ],
+  "soft_dependencies": [],
+  "allowed_files": [
+    "packages/core/release/**",
+    "packages/github-adapter/releases/**",
+    "docs/**"
+  ],
+  "acceptance_criteria": [
+    "Existing release policy wins; otherwise propose SemVer from Conventional Commits.",
+    "Show proposed version, breaking changes, changelog, and release notes for approval.",
+    "Tag/Release creation always requires explicit approval; non-interactive returns approval_required."
+  ],
+  "verification_commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint"
+  ],
+  "expected_evidence": [
+    "release approval gate output",
+    "non-interactive no-mutation assertion",
+    "release proposal fixture"
+  ],
+  "execution_owner": "Main Agent",
+  "parallel_execution_eligible": true,
+  "risk_classification": "Irreversible",
+  "undo_classification": "Do not publish tags/releases without explicit approval.",
+  "approval_requirements": [
+    "GitHub Issue approval before implementation.",
+    "Explicit approval before Tag/Release creation."
+  ],
+  "retry_policy": "Initial attempt plus at most 2 retries for local processing; remote mutation retries require fresh idempotency checks.",
+  "current_status": "blocked",
+  "blocking_reasons": [
+    "N09, N16 and approved Issue required."
+  ]
+}

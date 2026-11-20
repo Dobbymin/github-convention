@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "runId": "run-2026-11-21-abc123",
+  "status": "in_progress",
+  "createdAt": "2026-11-21T00:00:00.000Z",
+  "updatedAt": "2026-11-21T00:15:00.000Z",
+  "repository": {
+    "root": "/workspace/example",
+    "owner": "example-owner",
+    "name": "example-repo",
+    "defaultBranch": "main"
+  },
+  "parentIssue": {
+    "number": 100,
+    "url": "https://github.com/example-owner/example-repo/issues/100",
+    "status": "open"
+  },
+  "approvals": [
+    {
+      "approvalId": "approval-001",
+      "action": "create_issues",
+      "status": "approved",
+      "approvedAt": "2026-11-21T00:02:00.000Z",
+      "source": "interactive_user_confirmation"
+    }
+  ],
+  "tasks": [
+    {
+      "stableId": "task-101",
+      "issueNumber": 101,
+      "title": "Implement authentication API",
+      "status": "completed",
+      "dependsOn": [],
+      "worker": {
+        "agentId": "worker-a",
+        "status": "completed",
+        "attempt": 1,
+        "reportLanguage": "en"
+      },
+      "workspace": {
+        "kind": "git_worktree",
+        "path": "/workspace/example-wt-101",
+        "branch": "feat/101-be-auth-api"
+      },
+      "changedFiles": ["src/auth/auth.controller.ts", "src/auth/auth.service.ts"],
+      "tests": {
+        "unit": "passed",
+        "integration": "passed",
+        "typeCheck": "passed"
+      },
+      "lastCheckpoint": "worker_report_verified"
+    },
+    {
+      "stableId": "task-102",
+      "issueNumber": 102,
+      "title": "Implement login UI",
+      "status": "blocked",
+      "dependsOn": ["task-101"],
+      "worker": null,
+      "workspace": null,
+      "changedFiles": [],
+      "tests": {},
+      "lastCheckpoint": "waiting_for_dependency_merge"
+    }
+  ],
+  "remoteSync": {
+    "lastFetchedAt": "2026-11-21T00:14:00.000Z",
+    "issuesVerified": [100, 101, 102],
+    "pullRequestsVerified": []
+  }
+}

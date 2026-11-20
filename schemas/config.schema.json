@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/github-convention/config.schema.json",
+  "title": "GitHub Convention Config",
+  "type": "object",
+  "required": ["schema_version"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "sub_agents": { "enum": ["auto", "enabled", "disabled"] },
+        "max_parallel_agents": { "type": "integer", "minimum": 1, "maximum": 64 },
+        "retry": {
+          "type": "object",
+          "properties": {
+            "worker_max_retries": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "code_ci_max_retries": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "transient_ci_max_retries": { "type": "integer", "minimum": 0, "maximum": 10 }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "archive": {
+      "type": "object",
+      "properties": {
+        "retention_days": { "type": "integer", "minimum": 1, "maximum": 3650 },
+        "auto_cleanup_on_cli_start": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "github": {
+      "type": "object",
+      "properties": {
+        "auth_preference": { "enum": ["gh", "connected_agent_tool"] },
+        "default_branch": { "type": "string", "minLength": 1 },
+        "create_draft_pr": { "type": "boolean", "const": false },
+        "require_issue_approval": { "type": "boolean", "const": true },
+        "require_release_approval": { "type": "boolean", "const": true }
+      },
+      "additionalProperties": true
+    },
+    "quality": {
+      "type": "object",
+      "properties": {
+        "reuse_existing_tools": { "type": "boolean" },
+        "require_secret_scan": { "type": "boolean", "const": true },
+        "secret_scanner_install_requires_approval": { "type": "boolean", "const": true },
+        "self_review_required_before_pr": { "type": "boolean", "const": true },
+        "extra_checks": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "notifications": {
+      "type": "object",
+      "properties": {
+        "session": { "type": "boolean" },
+        "external": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "provider": { "type": ["string", "null"] }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "privacy": {
+      "type": "object",
+      "properties": {
+        "telemetry": { "type": "boolean", "const": false }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

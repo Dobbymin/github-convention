@@ -1,0 +1,60 @@
+{
+  "node_id": "N18",
+  "title": "Branch protection and deployment observation",
+  "priority": "P2",
+  "prd_requirement_ids": [
+    "FR-DEP-01",
+    "FR-DEP-02",
+    "FR-DEP-03"
+  ],
+  "objective": "Inspect protection/rulesets and post-merge deployment/health status, retry only transient failures, and present rollback plans for explicit approval.",
+  "input": [
+    "N14 PR and merge status",
+    "fresh repository protection/deployment/health data",
+    "PRD Sections 8.5, 9",
+    "SPEC Sections 12.6, 15.1"
+  ],
+  "expected_output": [
+    "branch protection proposal",
+    "deployment/health observer",
+    "approval-gated rollback plan"
+  ],
+  "hard_dependencies": [
+    "N16"
+  ],
+  "soft_dependencies": [],
+  "allowed_files": [
+    "packages/github-adapter/protection/**",
+    "packages/github-adapter/deployments/**",
+    "packages/core/operations/**"
+  ],
+  "acceptance_criteria": [
+    "Existing protection is inspected and never changed without approval.",
+    "Health-check failure halts further deployment actions.",
+    "Transient errors retry within limits.",
+    "No automatic rollback occurs; rollback plan requires explicit approval."
+  ],
+  "verification_commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint"
+  ],
+  "expected_evidence": [
+    "mocked deployment and health logs",
+    "protection proposal approval tests",
+    "rollback no-mutation assertions"
+  ],
+  "execution_owner": "Main Agent",
+  "parallel_execution_eligible": true,
+  "risk_classification": "Irreversible",
+  "undo_classification": "Never execute rollback automatically; preserve deployment evidence and present the exact plan for approval.",
+  "approval_requirements": [
+    "GitHub Issue approval before implementation",
+    "Explicit user approval before protection changes or rollback."
+  ],
+  "retry_policy": "Only classified transient retries; repeated failure halts and escalates.",
+  "current_status": "blocked",
+  "blocking_reasons": [
+    "N14 merge lifecycle and approved Issue required."
+  ]
+}

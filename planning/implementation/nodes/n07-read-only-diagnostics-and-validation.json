@@ -1,0 +1,55 @@
+{
+  "node_id": "N07",
+  "title": "Read-only diagnostics and validation",
+  "priority": "P0",
+  "prd_requirement_ids": [
+    "FR-CLI-12"
+  ],
+  "objective": "Implement doctor and validate as read-only diagnostics for runtime, Git/gh authentication, Agent paths/capabilities, config/schema, versions, permissions, and installation integrity.",
+  "input": [
+    "N02 CLI command/output contract",
+    "N03 configuration validation",
+    "N05 Agent adapter registry",
+    "PRD FR-CLI-12",
+    "docs/cli-contract.md"
+  ],
+  "expected_output": [
+    "doctor and validate commands with text/JSON diagnostics"
+  ],
+  "hard_dependencies": [
+    "N02",
+    "N03",
+    "N05",
+    "N06"
+  ],
+  "soft_dependencies": [],
+  "allowed_files": [
+    "packages/cli/doctor/**",
+    "packages/cli/validate/**"
+  ],
+  "acceptance_criteria": [
+    "Doctor/validate report OS/runtime, Git/gh auth, Agent paths/capabilities, config/schema, versions, permissions, and integrity.",
+    "Both commands are read-only and perform no hidden mutation."
+  ],
+  "verification_commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint"
+  ],
+  "expected_evidence": [
+    "doctor/validate contract test output",
+    "read-only filesystem and remote-call assertions"
+  ],
+  "execution_owner": "Main Agent",
+  "parallel_execution_eligible": true,
+  "risk_classification": "Reversible",
+  "undo_classification": "Revert only diagnostics code introduced by this node.",
+  "approval_requirements": [
+    "GitHub Issue approval before implementation."
+  ],
+  "retry_policy": "Initial attempt plus at most 2 retries; repeated integrity failure escalates without destructive retry.",
+  "current_status": "blocked",
+  "blocking_reasons": [
+    "N02, N03, N05, N06 and approved Issue required."
+  ]
+}

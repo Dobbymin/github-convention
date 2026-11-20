@@ -1,0 +1,65 @@
+{
+  "node_id": "N15",
+  "title": "Worker contract, result verification, and bounded retries",
+  "priority": "P1",
+  "prd_requirement_ids": [
+    "FR-ORCH-04",
+    "FR-ORCH-05",
+    "FR-ORCH-06",
+    "FR-ORCH-07",
+    "FR-ORCH-08",
+    "FR-ORCH-09"
+  ],
+  "objective": "Enforce worker restrictions, parse the standard English Task Report, independently verify scope/diffs/tests, preserve interrupted work, and retry/fail per bounded policy.",
+  "input": [
+    "N04 Orchestrator State",
+    "N12 isolated workspace contract",
+    "PRD Section 8.4",
+    "SPEC Sections 10.5, 11.3-11.5"
+  ],
+  "expected_output": [
+    "worker instruction/report contract",
+    "diff/scope/test verification",
+    "failure feedback and retry orchestration"
+  ],
+  "hard_dependencies": [
+    "N14"
+  ],
+  "soft_dependencies": [],
+  "allowed_files": [
+    "packages/core/workers/**",
+    "packages/core/orchestration/**",
+    "skills/github-convention/references/orchestration.md"
+  ],
+  "acceptance_criteria": [
+    "Workers cannot commit/push, mutate GitHub, resolve threads, merge, or write shared State by contract/tool permissions where supported.",
+    "Report includes Issue, status, summary, files, tests, decisions, issues, blockers.",
+    "Main Agent verifies actual diff, allowed paths, secrets, and relevant checks independent of report.",
+    "Failure blocks only task and hard dependents; independent tasks continue.",
+    "At most two retries after initial attempt; repeated identical/non-retryable errors stop early.",
+    "Interrupted workspaces are preserved and ambiguous changes require review."
+  ],
+  "verification_commands": [
+    "npm test",
+    "npm run typecheck",
+    "npm run lint"
+  ],
+  "expected_evidence": [
+    "worker contract tests",
+    "scope/diff validation logs",
+    "retry and independent-continuation simulations",
+    "interrupted workspace recovery fixtures"
+  ],
+  "execution_owner": "Main Agent",
+  "parallel_execution_eligible": false,
+  "risk_classification": "Recoverable",
+  "undo_classification": "Retain worker artifacts/reports after failure; only clean verified owned files.",
+  "approval_requirements": [
+    "GitHub Issue approval before implementation"
+  ],
+  "retry_policy": "Initial attempt plus at most 2 retries; identical failure escalates immediately.",
+  "current_status": "blocked",
+  "blocking_reasons": [
+    "N12 required."
+  ]
+}
