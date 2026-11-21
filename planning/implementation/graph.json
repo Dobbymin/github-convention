@@ -228,7 +228,7 @@
       "contract_file": "nodes/n17-review-thread-and-ci-remediation-loop.json",
       "priority": "P1",
       "hard_dependencies": ["N16"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": true
     },
     {
