@@ -4,7 +4,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { runCli } from "./runner.js";
-import { ExitCodes, ErrorCodes, type IssuePlan } from "@dobbymin/github-convention-core";
+import {
+  archiveCompletedRun,
+  ErrorCodes,
+  ExitCodes,
+  getActiveStateDir,
+  StateManager,
+  type ExecutionState,
+  type IssuePlan,
+} from "@dobbymin/github-convention-core";
 
 const SAMPLE_PLAN: IssuePlan = {
   planId: "plan-contract-1",
@@ -38,6 +46,22 @@ const createTempPlanProject = (): string => {
   const planPath = path.join(dir, ".github-convention", "state", "active", "plan.json");
   fs.mkdirSync(path.dirname(planPath), { recursive: true });
   fs.writeFileSync(planPath, JSON.stringify(SAMPLE_PLAN), "utf-8");
+
+  const activeDir = getActiveStateDir(dir);
+  const manager = new StateManager({ stateDir: activeDir, role: "orchestrator" });
+  const archivedState: ExecutionState = {
+    schemaVersion: 1,
+    runId: "run-contract-1",
+    status: "completed",
+    createdAt: "2026-11-20T00:00:00.000Z",
+    updatedAt: "2026-11-20T00:00:00.000Z",
+    repository: { root: dir, name: "demo", defaultBranch: "main" },
+    approvals: [],
+    tasks: [],
+  };
+  manager.save(archivedState);
+  archiveCompletedRun(dir, "run-contract-1", false, new Date().toISOString());
+
   return dir;
 };
 
@@ -56,9 +80,9 @@ test("all documented command families parse and return stable envelopes", async 
       ["cleanup", "--dry-run"],
       ["plan", "validate", "--project", planProjectDir],
       ["plan", "apply", "--dry-run"],
-      ["state", "list"],
-      ["state", "show"],
-      ["state", "restore", "--dry-run"],
+      ["state", "list", "--project", planProjectDir],
+      ["state", "show", "run-contract-1", "--project", planProjectDir],
+      ["state", "restore", "run-contract-1", "--project", planProjectDir, "--dry-run"],
     ];
 
     for (const cmd of commands) {
@@ -173,37 +197,66 @@ test("missing plan.json causes plan validate and plan apply to fail with non-zer
     assert.equal(applyRes.exitCode, ExitCodes.INVALID_ARGUMENTS);
     assert.equal(applyRes.envelope.status, "failed");
     assert.equal(applyRes.envelope.errors[0]?.code, ErrorCodes.CONFIG_INVALID);
+
+    const missingRunIdShow = await runCli(
+      ["state", "show", "--project", emptyDir, "--output", "json"],
+      {
+        stdout: () => {},
+        stderr: () => {},
+      },
+    );
+    assert.equal(missingRunIdShow.exitCode, ExitCodes.INVALID_ARGUMENTS);
+    assert.equal(missingRunIdShow.envelope.status, "failed");
+
+    const unknownShow = await runCli(
+      ["state", "show", "nonexistent-run", "--project", emptyDir, "--output", "json"],
+      { stdout: () => {}, stderr: () => {} },
+    );
+    assert.notEqual(unknownShow.exitCode, ExitCodes.SUCCESS);
+    assert.equal(unknownShow.envelope.status, "failed");
+
+    const unknownRestore = await runCli(
+      ["state", "restore", "nonexistent-run", "--project", emptyDir, "--output", "json"],
+      { stdout: () => {}, stderr: () => {} },
+    );
+    assert.notEqual(unknownRestore.exitCode, ExitCodes.SUCCESS);
+    assert.equal(unknownRestore.envelope.status, "failed");
   } finally {
     fs.rmSync(emptyDir, { recursive: true, force: true });
   }
 });
 
 test("dry-run performs inspection only and creates no persistent changes", async () => {
-  const mutatingCommands = [
-    ["install", "--dry-run"],
-    ["update", "--dry-run"],
-    ["uninstall", "--dry-run"],
-    ["init", "--dry-run"],
-    ["cleanup", "--dry-run"],
-    ["plan", "apply", "--dry-run"],
-    ["state", "restore", "--dry-run"],
-  ];
+  const planProjectDir = createTempPlanProject();
+  try {
+    const mutatingCommands = [
+      ["install", "--dry-run"],
+      ["update", "--dry-run"],
+      ["uninstall", "--dry-run"],
+      ["init", "--dry-run"],
+      ["cleanup", "--dry-run"],
+      ["plan", "apply", "--dry-run"],
+      ["state", "restore", "run-contract-1", "--project", planProjectDir, "--dry-run"],
+    ];
 
-  const snapshotBefore = fs.readdirSync(process.cwd());
+    const snapshotBefore = fs.readdirSync(process.cwd());
 
-  for (const cmd of mutatingCommands) {
-    const res = await runCli([...cmd, "--output", "json"], {
-      stdout: () => {},
-      stderr: () => {},
-    });
+    for (const cmd of mutatingCommands) {
+      const res = await runCli([...cmd, "--output", "json"], {
+        stdout: () => {},
+        stderr: () => {},
+      });
 
-    assert.equal(res.exitCode, ExitCodes.SUCCESS);
-    assert.equal(res.envelope.status, "completed");
-    assert.equal((res.envelope.data as Record<string, unknown>)?.dryRun, true);
+      assert.equal(res.exitCode, ExitCodes.SUCCESS);
+      assert.equal(res.envelope.status, "completed");
+      assert.equal((res.envelope.data as Record<string, unknown>)?.dryRun, true);
+    }
+
+    const snapshotAfter = fs.readdirSync(process.cwd());
+    assert.deepEqual(snapshotBefore, snapshotAfter, "Dry-run must not create or delete files");
+  } finally {
+    fs.rmSync(planProjectDir, { recursive: true, force: true });
   }
-
-  const snapshotAfter = fs.readdirSync(process.cwd());
-  assert.deepEqual(snapshotBefore, snapshotAfter, "Dry-run must not create or delete files");
 });
 
 test("common flags parsing and validation", async () => {

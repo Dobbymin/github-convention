@@ -19,7 +19,7 @@ const VALID_SUB_ISSUE_TYPES = new Set([
 
 const VALID_PRIORITIES = new Set(["priority:high", "priority:medium", "priority:low"]);
 
-const normalizePosixPath = (input: string): string => {
+export const normalizePosixPath = (input: string): string => {
   const withForwardSlashes = input.replace(/\\/g, "/").trim();
   const normalized = path.posix.normalize(withForwardSlashes);
   return normalized.replace(/^\.\//, "").replace(/\/+$/, "");
@@ -33,7 +33,7 @@ const stripGlobSuffix = (pattern: string): string => {
     .replace(/\/+$/, "");
 };
 
-const pathsOverlap = (rawA: string, rawB: string): boolean => {
+export const pathsOverlap = (rawA: string, rawB: string): boolean => {
   const a = normalizePosixPath(rawA);
   const b = normalizePosixPath(rawB);
   if (!a || !b) {

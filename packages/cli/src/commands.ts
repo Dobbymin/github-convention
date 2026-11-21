@@ -445,6 +445,7 @@ export const COMMANDS: Record<string, CommandDefinition> = {
           activeCount: result.activeCount,
           archivedCount: result.archivedCount,
           latestRun: result.latestRun,
+          agents: result.agents,
         },
         warnings: result.warnings,
       };
@@ -469,6 +470,9 @@ export const COMMANDS: Record<string, CommandDefinition> = {
             actions: ["scan_expired_archives", "scan_temp_artifacts"],
             deletedRunIds: result.deletedRunIds,
             retainedRunIds: result.retainedRunIds,
+            removedWorktrees: result.removedWorktrees,
+            preservedWorktrees: result.preservedWorktrees,
+            removedTempDirs: result.removedTempDirs,
           },
         };
       }
@@ -479,6 +483,9 @@ export const COMMANDS: Record<string, CommandDefinition> = {
           cleaned: true,
           deletedRunIds: result.deletedRunIds,
           retainedRunIds: result.retainedRunIds,
+          removedWorktrees: result.removedWorktrees,
+          preservedWorktrees: result.preservedWorktrees,
+          removedTempDirs: result.removedTempDirs,
         },
       };
     },
@@ -658,53 +665,103 @@ export const COMMANDS: Record<string, CommandDefinition> = {
 
       if (sub === "show") {
         const runId = ctx.args.positionals[0];
+        if (!runId) {
+          return {
+            exitCode: ExitCodes.INVALID_ARGUMENTS,
+            status: "failed",
+            errors: [
+              {
+                code: ErrorCodes.INVALID_ARGUMENTS,
+                message: "Missing required <runId> argument for 'state show'.",
+              },
+            ],
+          };
+        }
         const shown = runStateShow({
           projectRoot: ctx.args.options.project,
-          ...(runId !== undefined ? { runId } : {}),
+          runId,
         });
+        if (!shown || shown.location === "missing" || !shown.state) {
+          return {
+            exitCode: ExitCodes.GENERAL_FAILURE,
+            status: "failed",
+            errors: [
+              {
+                code: ErrorCodes.OPERATION_FAILED,
+                message: `Execution state not found for runId '${runId}'.`,
+              },
+            ],
+          };
+        }
         return {
           exitCode: ExitCodes.SUCCESS,
           status: "completed",
           data: {
             subcommand: "show",
-            state: shown?.state ?? null,
+            location: shown.location,
+            state: shown.state,
           },
         };
       }
 
       if (sub === "restore") {
         const runId = ctx.args.positionals[0];
-        if (ctx.args.options.dryRun) {
-          const preview = runStateRestore({
+        if (!runId) {
+          return {
+            exitCode: ExitCodes.INVALID_ARGUMENTS,
+            status: "failed",
+            errors: [
+              {
+                code: ErrorCodes.INVALID_ARGUMENTS,
+                message: "Missing required <runId> argument for 'state restore'.",
+              },
+            ],
+          };
+        }
+        try {
+          if (ctx.args.options.dryRun) {
+            const preview = runStateRestore({
+              projectRoot: ctx.args.options.project,
+              runId,
+              dryRun: true,
+            });
+            return {
+              exitCode: ExitCodes.SUCCESS,
+              status: "completed",
+              data: {
+                dryRun: true,
+                command: "state restore",
+                actions: ["inspect_archive_state", "preview_restore"],
+                ...(preview !== null ? { preview } : {}),
+              },
+            };
+          }
+
+          const restored = runStateRestore({
             projectRoot: ctx.args.options.project,
-            ...(runId !== undefined ? { runId } : {}),
-            dryRun: true,
+            runId,
+            dryRun: false,
           });
           return {
             exitCode: ExitCodes.SUCCESS,
             status: "completed",
             data: {
-              dryRun: true,
-              command: "state restore",
-              actions: ["inspect_archive_state", "preview_restore"],
-              ...(preview !== null ? { preview } : {}),
+              restored: restored?.moved ?? true,
+              ...(restored !== null ? { result: restored } : {}),
             },
           };
+        } catch (err) {
+          return {
+            exitCode: ExitCodes.GENERAL_FAILURE,
+            status: "failed",
+            errors: [
+              {
+                code: ErrorCodes.OPERATION_FAILED,
+                message: err instanceof Error ? err.message : String(err),
+              },
+            ],
+          };
         }
-
-        const restored = runStateRestore({
-          projectRoot: ctx.args.options.project,
-          ...(runId !== undefined ? { runId } : {}),
-          dryRun: false,
-        });
-        return {
-          exitCode: ExitCodes.SUCCESS,
-          status: "completed",
-          data: {
-            restored: restored?.moved ?? true,
-            ...(restored !== null ? { result: restored } : {}),
-          },
-        };
       }
 
       return {
