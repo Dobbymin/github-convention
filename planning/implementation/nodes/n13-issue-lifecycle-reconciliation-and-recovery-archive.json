@@ -2,12 +2,7 @@
   "node_id": "N13",
   "title": "Issue lifecycle reconciliation and recovery archive",
   "priority": "P1",
-  "prd_requirement_ids": [
-    "FR-GH-09",
-    "FR-GH-10",
-    "FR-GH-11",
-    "FR-STATE-06"
-  ],
+  "prd_requirement_ids": ["FR-GH-09", "FR-GH-10", "FR-GH-11", "FR-STATE-06"],
   "objective": "Reconcile Parent/child lifecycle and task readiness from fresh GitHub state, create approved follow-up tasks, and archive completed run state safely.",
   "input": [
     "N04 State/lock lifecycle",
@@ -21,10 +16,7 @@
     "approval-gated follow-up flow",
     "archive/restore/retention logic"
   ],
-  "hard_dependencies": [
-    "N04",
-    "N12"
-  ],
+  "hard_dependencies": ["N04", "N12"],
   "soft_dependencies": [],
   "allowed_files": [
     "packages/github-adapter/lifecycle/**",
@@ -38,11 +30,7 @@
     "Follow-up Issue links to original and is created only after user approval with impact-based priority.",
     "Completed runs archive with default 30-day retention; active or pending-draft state is not deleted."
   ],
-  "verification_commands": [
-    "npm test",
-    "npm run typecheck",
-    "npm run lint"
-  ],
+  "verification_commands": ["npm test", "npm run typecheck", "npm run lint"],
   "expected_evidence": [
     "reconciliation state-transition tests",
     "kill/restart recovery logs",
@@ -58,7 +46,5 @@
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; repeated identical remote mismatch escalates.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "N04 and N10 required."
-  ]
+  "blocking_reasons": ["N04 and N10 required."]
 }

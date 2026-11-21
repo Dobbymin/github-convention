@@ -2,12 +2,7 @@
   "node_id": "N12",
   "title": "Issue approvals, idempotent creation, and dependency links",
   "priority": "P1",
-  "prd_requirement_ids": [
-    "FR-GH-05",
-    "FR-GH-06",
-    "FR-GH-07",
-    "FR-GH-08"
-  ],
+  "prd_requirement_ids": ["FR-GH-05", "FR-GH-06", "FR-GH-07", "FR-GH-08"],
   "objective": "Present Issue drafts by Parent, retain approval state, require explicit approval for each remote write, create Issues idempotently, and preserve hard blockers.",
   "input": [
     "N09 validated plan and fresh remote reads",
@@ -20,10 +15,7 @@
     "idempotent Issue creation",
     "native dependency link operations"
   ],
-  "hard_dependencies": [
-    "N04",
-    "N11"
-  ],
+  "hard_dependencies": ["N04", "N11"],
   "soft_dependencies": [],
   "allowed_files": [
     "packages/github-adapter/issues/**",
@@ -37,11 +29,7 @@
     "Stable plan/task markers plus fresh remote checks prevent duplicate creation on retries/interruption.",
     "Hard blockers use native GitHub dependencies; approved downstream work remains blocked if prerequisite is excluded/unapproved."
   ],
-  "verification_commands": [
-    "npm test",
-    "npm run typecheck",
-    "npm run lint"
-  ],
+  "verification_commands": ["npm test", "npm run typecheck", "npm run lint"],
   "expected_evidence": [
     "approval gate integration logs",
     "lost-response fault-injection logs",
@@ -57,7 +45,5 @@
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; on ambiguous remote result, query and reconcile before retry.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "N04, N09 and approved Issue required."
-  ]
+  "blocking_reasons": ["N04, N09 and approved Issue required."]
 }

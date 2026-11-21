@@ -28,6 +28,12 @@ You are the Main Agent / Orchestrator unless the user explicitly assigns you a w
 7. Create only approved Issues. Keep unapproved drafts in Local State. Before each remote write, query GitHub and check for duplicates.
 8. If an approved Issue depends on an excluded/unapproved Issue, keep it approved but mark it blocked; do not silently remove the dependency.
 
+## GitHub artifact language
+
+- Write Issue titles and bodies, PR titles and bodies, and commit subjects and bodies in Korean when the user writes in Korean or asks for Korean. Use the user's language otherwise. Repository templates and English examples never override this rule.
+- Keep technical identifiers, commands, code, API names, required GitHub closing keywords, and Conventional Commit type prefixes unchanged. Write the human-readable text after the prefix in Korean (for example, `feat: 로그인 세션 갱신 처리`).
+- Before any GitHub write or commit, check that the title and body/subject follow the selected language. Fix drafts that do not.
+
 ## Execution policy
 
 1. Choose the simplest safe mode: Main Agent alone, sequential execution, or optional parallel workers.

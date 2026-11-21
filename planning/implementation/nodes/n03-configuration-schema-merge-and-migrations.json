@@ -2,13 +2,7 @@
   "node_id": "N03",
   "title": "Configuration schema, merge, and migrations",
   "priority": "P0",
-  "prd_requirement_ids": [
-    "FR-CFG-01",
-    "FR-CFG-02",
-    "FR-CFG-03",
-    "FR-CFG-04",
-    "FR-CFG-05"
-  ],
+  "prd_requirement_ids": ["FR-CFG-01", "FR-CFG-02", "FR-CFG-03", "FR-CFG-04", "FR-CFG-05"],
   "objective": "Implement versioned Global/Project config loading, merge/validation rules, immutable safety policy, and backup-first schema migration.",
   "input": [
     "N01 package/runtime baseline",
@@ -22,9 +16,7 @@
     "recursive merge and immutable policy enforcement",
     "staged backup-first migration logic"
   ],
-  "hard_dependencies": [
-    "N01"
-  ],
+  "hard_dependencies": ["N01"],
   "soft_dependencies": [],
   "allowed_files": [
     "packages/core/config/**",
@@ -37,11 +29,7 @@
     "Invalid known keys block before side effects; unknown keys warn.",
     "Migration validates in staging, preserves backup, and rolls back on failure; semantic conflicts require approval."
   ],
-  "verification_commands": [
-    "npm test",
-    "npm run typecheck",
-    "npm run lint"
-  ],
+  "verification_commands": ["npm test", "npm run typecheck", "npm run lint"],
   "expected_evidence": [
     "merge/validation/migration test output",
     "backup/rollback fixtures",
@@ -57,7 +45,5 @@
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; repeated identical failure escalates.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "N01 and approved Issue required."
-  ]
+  "blocking_reasons": ["N01 and approved Issue required."]
 }

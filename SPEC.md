@@ -85,14 +85,14 @@ flowchart TB
 
 ### 4.1 Component ownership
 
-| Component | Owns | Must not own |
-|---|---|---|
-| Skill | Workflow instructions, reasoning checklist, templates, review criteria | Long-lived state writes, hidden approval, raw token storage |
-| Main Agent / Orchestrator | Plan, approvals, scheduling, task assignment, integration, Git/GitHub mutation decisions | Blindly trusting worker output |
-| Worker / Sub Agent | Assigned code changes and tests in its isolated workspace; English report | Commit, push, PR, Issue mutation, shared State mutation |
-| CLI Core | Deterministic validation, filesystem, hashing, locks, state writes, command execution | Semantic product decisions that need user context |
-| Agent Adapter | Detection, install path, symlink/copy strategy, capability discovery | Changing project code conventions |
-| GitHub Adapter | `gh` commands/API calls, auth checks, idempotent remote operations | Storing a separate PAT when existing auth works |
+| Component                 | Owns                                                                                     | Must not own                                                |
+| ------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Skill                     | Workflow instructions, reasoning checklist, templates, review criteria                   | Long-lived state writes, hidden approval, raw token storage |
+| Main Agent / Orchestrator | Plan, approvals, scheduling, task assignment, integration, Git/GitHub mutation decisions | Blindly trusting worker output                              |
+| Worker / Sub Agent        | Assigned code changes and tests in its isolated workspace; English report                | Commit, push, PR, Issue mutation, shared State mutation     |
+| CLI Core                  | Deterministic validation, filesystem, hashing, locks, state writes, command execution    | Semantic product decisions that need user context           |
+| Agent Adapter             | Detection, install path, symlink/copy strategy, capability discovery                     | Changing project code conventions                           |
+| GitHub Adapter            | `gh` commands/API calls, auth checks, idempotent remote operations                       | Storing a separate PAT when existing auth works             |
 
 ### 4.2 Suggested monorepo layout
 
@@ -157,14 +157,14 @@ Global installation is mapped by each Agent Adapter to the supported user-level 
 
 Locations below are an implementation-time starting point, not immutable constants. Adapter metadata must be versioned and `doctor` must validate actual behavior. Official docs checked on 2026-11-21:
 
-| Agent | Project Skill location | Global Skill location | Notes |
-|---|---|---|---|
-| Codex | `.agents/skills/<skill>/` | `~/.agents/skills/<skill>/` | Supports repository and user scopes; symlinked Skill folders are supported. |
-| Claude Code | `.claude/skills/<skill>/` | `~/.claude/skills/<skill>/` | Use a symlink to canonical `.agents/skills` where supported. |
-| Gemini CLI | `.agents/skills/<skill>/` or `.gemini/skills/<skill>/` | `~/.agents/skills/<skill>/` or `~/.gemini/skills/<skill>/` | Agent documentation describes `.agents/skills` aliases. |
-| Antigravity | `.agents/skills/<skill>/` | `~/.gemini/config/skills/<skill>/` | Workspace and user scope supported; CLI and IDE may expose additional paths. |
-| OpenCode | `.agents/skills/<skill>/` or `.opencode/skills/<skill>/` | `~/.agents/skills/<skill>/` or `~/.config/opencode/skills/<skill>/` | `.agents` is a compatibility source. |
-| Kilo Code | `.agents/skills/<skill>/` or `.kilo/skills/<skill>/` | `~/.agents/skills/<skill>/` or `~/.kilo/skills/<skill>/` | `.agents` compatibility is documented; exact surface can differ between CLI and editor. |
+| Agent       | Project Skill location                                   | Global Skill location                                               | Notes                                                                                   |
+| ----------- | -------------------------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Codex       | `.agents/skills/<skill>/`                                | `~/.agents/skills/<skill>/`                                         | Supports repository and user scopes; symlinked Skill folders are supported.             |
+| Claude Code | `.claude/skills/<skill>/`                                | `~/.claude/skills/<skill>/`                                         | Use a symlink to canonical `.agents/skills` where supported.                            |
+| Gemini CLI  | `.agents/skills/<skill>/` or `.gemini/skills/<skill>/`   | `~/.agents/skills/<skill>/` or `~/.gemini/skills/<skill>/`          | Agent documentation describes `.agents/skills` aliases.                                 |
+| Antigravity | `.agents/skills/<skill>/`                                | `~/.gemini/config/skills/<skill>/`                                  | Workspace and user scope supported; CLI and IDE may expose additional paths.            |
+| OpenCode    | `.agents/skills/<skill>/` or `.opencode/skills/<skill>/` | `~/.agents/skills/<skill>/` or `~/.config/opencode/skills/<skill>/` | `.agents` is a compatibility source.                                                    |
+| Kilo Code   | `.agents/skills/<skill>/` or `.kilo/skills/<skill>/`     | `~/.agents/skills/<skill>/` or `~/.kilo/skills/<skill>/`            | `.agents` compatibility is documented; exact surface can differ between CLI and editor. |
 
 Official references:
 
@@ -244,6 +244,7 @@ Use a protected three-way merge:
 - **Remote:** new released version.
 
 Algorithm:
+
 1. Verify manifest and SHA-256 of managed files.
 2. Download and verify the new package into a temporary directory.
 3. Compute the three-way merge.
@@ -289,7 +290,7 @@ The CLI also keeps its own local operational metadata under the OS user-data dir
 
 ### 7.3 Existing project instructions
 
-Inspect applicable sources such as `AGENTS.md`, `CONTRIBUTING.md`, existing issue/PR templates, CI files, package scripts, and observed Git conventions. If a source conflicts with Project Config or another authoritative instruction, do not silently choose. Present both sources and ask the user. Save the resolution in Project Config or a convention note so the same conflict is not repeatedly raised. If the source changes later, re-evaluate.
+Inspect applicable sources such as `AGENTS.md`, `CONTRIBUTING.md`, existing issue/PR templates (including `.github/ISSUE_TEMPLATE/` and `.github/pull_request_template.md`), CI files, package scripts, and observed Git conventions. If a source conflicts with Project Config or another authoritative instruction, do not silently choose. Present both sources and ask the user. Save the resolution in Project Config or a convention note so the same conflict is not repeatedly raised. If the source changes later, re-evaluate.
 
 ### 7.4 Customization boundary
 
@@ -312,6 +313,9 @@ Recommended Project layout:
 ```text
 repo/
 ├── .agents/skills/github-convention/   # canonical Skill; Git tracked
+├── .github/                            # optional repository-owned Issue/PR UI templates
+│   ├── ISSUE_TEMPLATE/
+│   └── pull_request_template.md
 ├── .github-convention/
 │   ├── config.yaml                     # Git tracked
 │   ├── conventions/                    # Git tracked
@@ -333,7 +337,7 @@ Example `.gitignore` entries:
 # Add only the exact adapter-generated fallback-copy path(s).
 ```
 
-Tracked data: canonical Skill, Project Config, convention documents, standard templates, and any team-owned workflow files.  
+Tracked data: canonical Skill, Project Config, convention documents, repository-owned `.github` templates, reusable defaults, and team-owned workflow files. Reuse existing `.github` templates; never replace them with bundled defaults.
 Untracked local data: analysis cache, Local State, archive, logs, temporary downloads, approval drafts that have not been applied, temporary worktrees.
 
 ## 9. Repository analysis and caching
@@ -344,7 +348,7 @@ On the first run, inspect only relevant sources:
 
 - Repository root and package/workspace layout
 - `AGENTS.md`, `CONTRIBUTING.md`, README and architecture docs
-- Existing issue and PR templates
+- Existing issue and PR templates, including `.github/ISSUE_TEMPLATE/` and `.github/pull_request_template.md`
 - Branch/commit patterns from recent history
 - GitHub labels, default branch, rulesets/branch protections, existing workflows
 - package scripts, tests, lint, format, type-check, build and secret scanner tools
@@ -373,7 +377,7 @@ Use GitHub Issue hierarchy and native dependencies, not GitHub Projects/Mileston
 - Parent Issue: goal, scope, grouped Sub-issues, overall acceptance criteria.
 - Sub-issue: one independently implementable and testable task, with requirements, tasks, acceptance criteria, dependencies, technical notes, and assumptions.
 - Dependencies: GitHub native `Blocked by` / `Blocking` relationships.
-- Labels: preserve existing project taxonomy; otherwise propose a small Type / Scope / Priority vocabulary after inspection and approval.
+- Labels: apply the default catalog in `templates/labels.yaml` when no project taxonomy exists. Every Issue has exactly one Type Label; Priority is optional with at most one; Scope is optional and may be multiple. Parent Issues use `type:epic`; Sub-issues use their actual work Type. Reuse semantically compatible existing Labels, do not create duplicates, and never delete or rename existing Labels without user approval. Do not create `blocked` Labels because GitHub native dependencies express blockers. Do not use Status Labels by default. See `docs/label-policy.md`.
 
 ### 10.2 Decomposition rules
 
@@ -457,27 +461,34 @@ Workers receive: Issue, acceptance criteria, dependency/contract context, allowe
 
 ```markdown
 ## Task Report
+
 - Issue: #123
 - Status: completed | blocked | failed
 
 ### Summary
+
 One or two sentences.
 
 ### Changed Files
+
 - `src/example.ts`
 
 ### Tests
+
 - Unit Tests: PASS
 - Integration Tests: PASS
 - Type Check: PASS
 
 ### Technical Decisions
+
 - None.
 
 ### Known Issues
+
 - None.
 
 ### Blockers
+
 - None.
 ```
 
@@ -486,6 +497,7 @@ Workers must not edit Local State, commit, push, open PRs, change labels, create
 ### 11.5 Orchestrator integration
 
 For each completed worker:
+
 1. Read the report and inspect the actual diff.
 2. Verify the changed paths are within assigned scope.
 3. Run tests independently; do not rely only on reported test output.
@@ -613,6 +625,7 @@ Detect existing formatting, lint, type-check, test, hook, and secret-scanning to
 GitHub is the source of truth for remote Issues, dependencies, Labels, PRs, and Merge state. Local State stores execution detail not represented by GitHub: DAG plan, task assignments, worker IDs, worktree path, file ownership, retry counters, last verified checkpoint, report digest, local approval state, and cache references.
 
 On restart:
+
 1. Acquire lock.
 2. Read and validate Local State.
 3. Query GitHub for every relevant Issue/PR/dependency status.
@@ -714,13 +727,13 @@ GitHub Actions tests macOS, Linux, and Windows. Test supported architecture arti
 
 ### 18.3 Pipeline gates
 
-| Stage | Checks |
-|---|---|
-| Commit/pre-commit | format, lint, type-check, staged secret scan (where project hooks are configured) |
-| Push/local pre-push | fast validation, secret scan |
-| PR open/update | Unit + Integration + secret scan |
-| Merge to default branch | full suite + E2E |
-| Release | full suite + release packaging + final smoke/deploy validation |
+| Stage                   | Checks                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| Commit/pre-commit       | format, lint, type-check, staged secret scan (where project hooks are configured) |
+| Push/local pre-push     | fast validation, secret scan                                                      |
+| PR open/update          | Unit + Integration + secret scan                                                  |
+| Merge to default branch | full suite + E2E                                                                  |
+| Release                 | full suite + release packaging + final smoke/deploy validation                    |
 
 The repository's current hooks and CI are inspected first. Do not replace existing project pipelines silently.
 
@@ -741,24 +754,24 @@ Use a dedicated user-owned test repository, never a real operating repository. E
 
 Use stable machine-readable error codes. Initial categories:
 
-| Code | Meaning |
-|---|---|
-| `CONFIG_INVALID` | Known config value/schema invalid |
-| `CONFIG_UNKNOWN_KEY` | Unknown config key; warning unless strict-future policy says otherwise |
-| `APPROVAL_REQUIRED` | Operation requires explicit user approval |
-| `AUTH_REQUIRED` | GitHub/agent authentication unavailable |
-| `PERMISSION_DENIED` | Authenticated but missing permission |
-| `AGENT_NOT_FOUND` | Requested Agent not detected |
-| `AGENT_CAPABILITY_UNKNOWN` | Adapter cannot verify requested capability |
-| `VERSION_INCOMPATIBLE` | CLI/Skill versions do not match |
-| `INTEGRITY_MISMATCH` | Installed file differs from manifest |
-| `MERGE_CONFLICT` | Three-way merge could not safely apply |
-| `LOCK_BUSY` | Another Orchestrator owns the project lock |
-| `STATE_CORRUPT` | Local State invalid/unreadable |
-| `GITHUB_CONFLICT` | Remote state changed or duplicate detected |
-| `SECRET_DETECTED` | Secret scanner found a likely secret |
-| `UNSAFE_PATH` | Path escapes the managed root or ownership is unclear |
-| `DRY_RUN_COMPLETE` | Plan rendered; no mutations performed |
+| Code                       | Meaning                                                                |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `CONFIG_INVALID`           | Known config value/schema invalid                                      |
+| `CONFIG_UNKNOWN_KEY`       | Unknown config key; warning unless strict-future policy says otherwise |
+| `APPROVAL_REQUIRED`        | Operation requires explicit user approval                              |
+| `AUTH_REQUIRED`            | GitHub/agent authentication unavailable                                |
+| `PERMISSION_DENIED`        | Authenticated but missing permission                                   |
+| `AGENT_NOT_FOUND`          | Requested Agent not detected                                           |
+| `AGENT_CAPABILITY_UNKNOWN` | Adapter cannot verify requested capability                             |
+| `VERSION_INCOMPATIBLE`     | CLI/Skill versions do not match                                        |
+| `INTEGRITY_MISMATCH`       | Installed file differs from manifest                                   |
+| `MERGE_CONFLICT`           | Three-way merge could not safely apply                                 |
+| `LOCK_BUSY`                | Another Orchestrator owns the project lock                             |
+| `STATE_CORRUPT`            | Local State invalid/unreadable                                         |
+| `GITHUB_CONFLICT`          | Remote state changed or duplicate detected                             |
+| `SECRET_DETECTED`          | Secret scanner found a likely secret                                   |
+| `UNSAFE_PATH`              | Path escapes the managed root or ownership is unclear                  |
+| `DRY_RUN_COMPLETE`         | Plan rendered; no mutations performed                                  |
 
 Non-interactive mode returns a non-zero exit code for failed/blocked operations and a structured JSON response when requested. Approval-required is a distinct status, not an automatic failure and never an implicit approval.
 
@@ -786,7 +799,7 @@ These are to be validated during implementation, not returned as another questio
 - Verify GitHub native Issue dependency API and required permissions in a dedicated test repository.
 - Validate Windows symlink behavior and generated-copy `.gitignore` rules.
 - Choose concrete CLI libraries after a small dependency/security review.
-- Define exact default Type/Scope/Priority labels only after analysing a target repository.
+- Reconcile `templates/labels.yaml` against each target repository before proposing Label creation; preserve existing names and resolve conflicts explicitly.
 - Define exact branch/commit naming fallback only when a project has no existing convention.
 - Confirm supported standalone binary targets in release CI.
 

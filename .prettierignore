@@ -1,1 +1,3 @@
 **/dist/
+_workspace/
+.harness/state/active/

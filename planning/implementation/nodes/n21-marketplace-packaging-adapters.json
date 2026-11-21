@@ -10,31 +10,16 @@
     "PRD Sections 6.2, 14",
     "SPEC Sections 5.2, 6.1"
   ],
-  "expected_output": [
-    "optional marketplace packaging adapters"
-  ],
-  "hard_dependencies": [
-    "N06",
-    "N09"
-  ],
+  "expected_output": ["optional marketplace packaging adapters"],
+  "hard_dependencies": ["N06", "N09"],
   "soft_dependencies": [],
-  "allowed_files": [
-    "packages/agent-adapters/marketplaces/**",
-    "docs/**"
-  ],
+  "allowed_files": ["packages/agent-adapters/marketplaces/**", "docs/**"],
   "acceptance_criteria": [
     "Marketplace packaging remains optional and does not fork or replace the canonical Skill source.",
     "Only verified marketplace formats are advertised."
   ],
-  "verification_commands": [
-    "npm test",
-    "npm run typecheck",
-    "npm run lint"
-  ],
-  "expected_evidence": [
-    "canonical source hash comparison",
-    "adapter package contract output"
-  ],
+  "verification_commands": ["npm test", "npm run typecheck", "npm run lint"],
+  "expected_evidence": ["canonical source hash comparison", "adapter package contract output"],
   "execution_owner": "Main Agent",
   "parallel_execution_eligible": true,
   "risk_classification": "Recoverable",
@@ -45,7 +30,5 @@
   ],
   "retry_policy": "Initial attempt plus at most 2 retries for local processing; external failures do not trigger duplicate sends without idempotency checks.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "N06, N09 and approved Issue required."
-  ]
+  "blocking_reasons": ["N06, N09 and approved Issue required."]
 }

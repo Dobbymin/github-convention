@@ -2,12 +2,7 @@
   "node_id": "N09",
   "title": "npm and standalone distribution artifacts",
   "priority": "P0",
-  "prd_requirement_ids": [
-    "FR-CLI-01",
-    "FR-CLI-02",
-    "FR-CLI-03",
-    "FR-CLI-13"
-  ],
+  "prd_requirement_ids": ["FR-CLI-01", "FR-CLI-02", "FR-CLI-03", "FR-CLI-13"],
   "objective": "Build and publish the CLI through npm and verified standalone OS/architecture artifacts with independent CLI/Skill versions and compatibility metadata.",
   "input": [
     "N01 workspace and release build baseline",
@@ -19,9 +14,7 @@
     "standalone binary build/release pipeline",
     "supported target manifest and checksums"
   ],
-  "hard_dependencies": [
-    "N01"
-  ],
+  "hard_dependencies": ["N01"],
   "soft_dependencies": [],
   "allowed_files": [
     "packages/**/package.json",
@@ -35,10 +28,7 @@
     "Only standalone targets verified in release CI are advertised.",
     "npm and GitHub Release workflows publish documented artifacts."
   ],
-  "verification_commands": [
-    "npm test",
-    "npm run build"
-  ],
+  "verification_commands": ["npm test", "npm run build"],
   "expected_evidence": [
     "OS/architecture build matrix logs",
     "package dry-run contents and checksums",
@@ -54,7 +44,5 @@
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; repeated integrity failure escalates without destructive retry.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "N01 and approved Issue required."
-  ]
+  "blocking_reasons": ["N01 and approved Issue required."]
 }

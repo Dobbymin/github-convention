@@ -3,11 +3,32 @@
   "$id": "https://example.invalid/github-convention/state.schema.json",
   "title": "GitHub Convention Execution State",
   "type": "object",
-  "required": ["schemaVersion", "runId", "status", "createdAt", "updatedAt", "repository", "tasks", "approvals"],
+  "required": [
+    "schemaVersion",
+    "runId",
+    "status",
+    "createdAt",
+    "updatedAt",
+    "repository",
+    "tasks",
+    "approvals"
+  ],
   "properties": {
     "schemaVersion": { "type": "integer", "minimum": 1 },
     "runId": { "type": "string", "minLength": 1 },
-    "status": { "enum": ["planned", "awaiting_approval", "approved", "in_progress", "blocked", "failed", "completed", "archived", "cancelled"] },
+    "status": {
+      "enum": [
+        "planned",
+        "awaiting_approval",
+        "approved",
+        "in_progress",
+        "blocked",
+        "failed",
+        "completed",
+        "archived",
+        "cancelled"
+      ]
+    },
     "createdAt": { "type": "string", "format": "date-time" },
     "updatedAt": { "type": "string", "format": "date-time" },
     "repository": {
@@ -54,7 +75,21 @@
           "stableId": { "type": "string" },
           "issueNumber": { "type": ["integer", "null"], "minimum": 1 },
           "title": { "type": "string" },
-          "status": { "enum": ["draft", "awaiting_approval", "approved", "ready", "blocked", "assigned", "in_progress", "review", "failed", "completed", "cancelled"] },
+          "status": {
+            "enum": [
+              "draft",
+              "awaiting_approval",
+              "approved",
+              "ready",
+              "blocked",
+              "assigned",
+              "in_progress",
+              "review",
+              "failed",
+              "completed",
+              "cancelled"
+            ]
+          },
           "dependsOn": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
           "worker": { "type": ["object", "null"] },
           "workspace": { "type": ["object", "null"] },

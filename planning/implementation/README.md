@@ -19,6 +19,7 @@ No normative conflict was found among PRD, SPEC, ROADMAP, and `docs/decision-reg
 ## Gate protocol
 
 Before marking a node `passed`, verify every acceptance criterion, run its listed commands, inspect the diff against `allowed_files`, and record command output/log paths as evidence in runtime state. `passed` outputs freeze. Any later modification requires an explicit dependent revalidation node and rerun of affected gates. Reversible changes need tests and diff review; recoverable changes also need backup/ownership evidence and independent review; irreversible remote or destructive actions require explicit user approval.
+
 ## Commit and local hook policy
 
 The Main Agent owns Git mutations and commits each independently scoped work unit after verification passes. Workers may implement and report, but never commit. A work unit is complete only when its validated changes have a commit. The repository hook runs `npm run format:check`, `npm run lint`, and `npm run typecheck` before each commit. The root `prepare` script registers `.githooks` during `npm install` or `npm ci` in a clone.

@@ -11,242 +11,88 @@
   "source_conflicts": [],
   "source_notes": [
     {
-      "documents": [
-        "PRD.md",
-        "SPEC.md",
-        "ROADMAP.md",
-        "docs/decision-register.md"
-      ],
+      "documents": ["PRD.md", "SPEC.md", "ROADMAP.md", "docs/decision-register.md"],
       "finding": "No normative requirement conflict found during audit. ROADMAP Epic flow is a delivery outline; this DAG records only technical prerequisites."
     },
     {
-      "documents": [
-        "SPEC.md",
-        "user-request"
-      ],
+      "documents": ["SPEC.md", "user-request"],
       "finding": "Product execution State under .github-convention/state/ is distinct from this graph runner State under .harness/state/active/; both remain local and Git-ignored."
     },
     {
-      "documents": [
-        "decision-register.md",
-        "docs/decision-register.md"
-      ],
+      "documents": ["decision-register.md", "docs/decision-register.md"],
       "finding": "Files are byte-identical; docs/decision-register.md remains the requested source of truth."
     }
   ],
   "requirement_coverage": {
-    "FR-CFG-01": [
-      "N03"
-    ],
-    "FR-CFG-02": [
-      "N03"
-    ],
-    "FR-CFG-03": [
-      "N03"
-    ],
-    "FR-CFG-04": [
-      "N03"
-    ],
-    "FR-CFG-05": [
-      "N03"
-    ],
-    "FR-CFG-06": [
-      "N10"
-    ],
-    "FR-CFG-07": [
-      "N10"
-    ],
-    "FR-CFG-08": [
-      "N10"
-    ],
-    "FR-CFG-09": [
-      "N11"
-    ],
-    "FR-CFG-10": [
-      "N10"
-    ],
-    "FR-CLI-01": [
-      "N01",
-      "N09"
-    ],
-    "FR-CLI-02": [
-      "N01",
-      "N09"
-    ],
-    "FR-CLI-03": [
-      "N09"
-    ],
-    "FR-CLI-04": [
-      "N05"
-    ],
-    "FR-CLI-05": [
-      "N06"
-    ],
-    "FR-CLI-06": [
-      "N06"
-    ],
-    "FR-CLI-07": [
-      "N06",
-      "N08"
-    ],
-    "FR-CLI-08": [
-      "N02",
-      "N08"
-    ],
-    "FR-CLI-09": [
-      "N02"
-    ],
-    "FR-CLI-10": [
-      "N02"
-    ],
-    "FR-CLI-11": [
-      "N02",
-      "N08"
-    ],
-    "FR-CLI-12": [
-      "N07"
-    ],
-    "FR-CLI-13": [
-      "N09"
-    ],
-    "FR-DEP-01": [
-      "N18"
-    ],
-    "FR-DEP-02": [
-      "N18"
-    ],
-    "FR-DEP-03": [
-      "N18"
-    ],
-    "FR-GH-01": [
-      "N11"
-    ],
-    "FR-GH-02": [
-      "N11"
-    ],
-    "FR-GH-03": [
-      "N11"
-    ],
-    "FR-GH-04": [
-      "N11"
-    ],
-    "FR-GH-05": [
-      "N12"
-    ],
-    "FR-GH-06": [
-      "N12"
-    ],
-    "FR-GH-07": [
-      "N12"
-    ],
-    "FR-GH-08": [
-      "N12"
-    ],
-    "FR-GH-09": [
-      "N13"
-    ],
-    "FR-GH-10": [
-      "N13"
-    ],
-    "FR-GH-11": [
-      "N13"
-    ],
-    "FR-NOTIFY-01": [
-      "N20"
-    ],
-    "FR-ORCH-01": [
-      "N14"
-    ],
-    "FR-ORCH-02": [
-      "N14"
-    ],
-    "FR-ORCH-03": [
-      "N14"
-    ],
-    "FR-ORCH-04": [
-      "N15"
-    ],
-    "FR-ORCH-05": [
-      "N15"
-    ],
-    "FR-ORCH-06": [
-      "N15"
-    ],
-    "FR-ORCH-07": [
-      "N15"
-    ],
-    "FR-ORCH-08": [
-      "N15"
-    ],
-    "FR-ORCH-09": [
-      "N15"
-    ],
-    "FR-ORCH-10": [
-      "N16"
-    ],
-    "FR-PR-01": [
-      "N16"
-    ],
-    "FR-PR-02": [
-      "N16"
-    ],
-    "FR-PR-03": [
-      "N16"
-    ],
-    "FR-PR-04": [
-      "N16"
-    ],
-    "FR-PR-05": [
-      "N17"
-    ],
-    "FR-PR-06": [
-      "N17"
-    ],
-    "FR-PR-07": [
-      "N17"
-    ],
-    "FR-QUAL-01": [
-      "N16"
-    ],
-    "FR-QUAL-02": [
-      "N16"
-    ],
-    "FR-QUAL-03": [
-      "N16"
-    ],
-    "FR-QUAL-04": [
-      "N16"
-    ],
-    "FR-REL-01": [
-      "N19"
-    ],
-    "FR-REL-02": [
-      "N19"
-    ],
-    "FR-STATE-01": [
-      "N04"
-    ],
-    "FR-STATE-02": [
-      "N04"
-    ],
-    "FR-STATE-03": [
-      "N04"
-    ],
-    "FR-STATE-04": [
-      "N04"
-    ],
-    "FR-STATE-05": [
-      "N10"
-    ],
-    "FR-STATE-06": [
-      "N13"
-    ],
-    "FR-STATE-07": [
-      "N04"
-    ],
-    "FR-STATE-08": [
-      "N04"
-    ]
+    "FR-CFG-01": ["N03"],
+    "FR-CFG-02": ["N03"],
+    "FR-CFG-03": ["N03"],
+    "FR-CFG-04": ["N03"],
+    "FR-CFG-05": ["N03"],
+    "FR-CFG-06": ["N10"],
+    "FR-CFG-07": ["N10"],
+    "FR-CFG-08": ["N10"],
+    "FR-CFG-09": ["N11"],
+    "FR-CFG-10": ["N10"],
+    "FR-CLI-01": ["N01", "N09"],
+    "FR-CLI-02": ["N01", "N09"],
+    "FR-CLI-03": ["N09"],
+    "FR-CLI-04": ["N05"],
+    "FR-CLI-05": ["N06"],
+    "FR-CLI-06": ["N06"],
+    "FR-CLI-07": ["N06", "N08"],
+    "FR-CLI-08": ["N02", "N08"],
+    "FR-CLI-09": ["N02"],
+    "FR-CLI-10": ["N02"],
+    "FR-CLI-11": ["N02", "N08"],
+    "FR-CLI-12": ["N07"],
+    "FR-CLI-13": ["N09"],
+    "FR-DEP-01": ["N18"],
+    "FR-DEP-02": ["N18"],
+    "FR-DEP-03": ["N18"],
+    "FR-GH-01": ["N11"],
+    "FR-GH-02": ["N11"],
+    "FR-GH-03": ["N11"],
+    "FR-GH-04": ["N11"],
+    "FR-GH-05": ["N12"],
+    "FR-GH-06": ["N12"],
+    "FR-GH-07": ["N12"],
+    "FR-GH-08": ["N12"],
+    "FR-GH-09": ["N13"],
+    "FR-GH-10": ["N13"],
+    "FR-GH-11": ["N13"],
+    "FR-NOTIFY-01": ["N20"],
+    "FR-ORCH-01": ["N14"],
+    "FR-ORCH-02": ["N14"],
+    "FR-ORCH-03": ["N14"],
+    "FR-ORCH-04": ["N15"],
+    "FR-ORCH-05": ["N15"],
+    "FR-ORCH-06": ["N15"],
+    "FR-ORCH-07": ["N15"],
+    "FR-ORCH-08": ["N15"],
+    "FR-ORCH-09": ["N15"],
+    "FR-ORCH-10": ["N16"],
+    "FR-PR-01": ["N16"],
+    "FR-PR-02": ["N16"],
+    "FR-PR-03": ["N16"],
+    "FR-PR-04": ["N16"],
+    "FR-PR-05": ["N17"],
+    "FR-PR-06": ["N17"],
+    "FR-PR-07": ["N17"],
+    "FR-QUAL-01": ["N16"],
+    "FR-QUAL-02": ["N16"],
+    "FR-QUAL-03": ["N16"],
+    "FR-QUAL-04": ["N16"],
+    "FR-REL-01": ["N19"],
+    "FR-REL-02": ["N19"],
+    "FR-STATE-01": ["N04"],
+    "FR-STATE-02": ["N04"],
+    "FR-STATE-03": ["N04"],
+    "FR-STATE-04": ["N04"],
+    "FR-STATE-05": ["N10"],
+    "FR-STATE-06": ["N13"],
+    "FR-STATE-07": ["N04"],
+    "FR-STATE-08": ["N04"]
   },
   "nodes": [
     {
@@ -261,9 +107,7 @@
       "id": "N02",
       "contract_file": "nodes/n02-cli-command-framework-and-output-contract.json",
       "priority": "P0",
-      "hard_dependencies": [
-        "N01"
-      ],
+      "hard_dependencies": ["N01"],
       "status": "blocked",
       "parallel_execution_eligible": false
     },
@@ -271,9 +115,7 @@
       "id": "N03",
       "contract_file": "nodes/n03-configuration-schema-merge-and-migrations.json",
       "priority": "P0",
-      "hard_dependencies": [
-        "N01"
-      ],
+      "hard_dependencies": ["N01"],
       "status": "blocked",
       "parallel_execution_eligible": true
     },
@@ -281,9 +123,7 @@
       "id": "N04",
       "contract_file": "nodes/n04-run-state-atomic-persistence-and-locking.json",
       "priority": "P0",
-      "hard_dependencies": [
-        "N01"
-      ],
+      "hard_dependencies": ["N01"],
       "status": "blocked",
       "parallel_execution_eligible": true
     },
@@ -291,9 +131,7 @@
       "id": "N05",
       "contract_file": "nodes/n05-agent-adapter-discovery-and-capabilities.json",
       "priority": "P0",
-      "hard_dependencies": [
-        "N01"
-      ],
+      "hard_dependencies": ["N01"],
       "status": "blocked",
       "parallel_execution_eligible": true
     },
@@ -301,11 +139,7 @@
       "id": "N06",
       "contract_file": "nodes/n06-agent-installation-and-canonical-skill-source.json",
       "priority": "P0",
-      "hard_dependencies": [
-        "N02",
-        "N03",
-        "N05"
-      ],
+      "hard_dependencies": ["N02", "N03", "N05"],
       "status": "blocked",
       "parallel_execution_eligible": false
     },
@@ -313,12 +147,7 @@
       "id": "N07",
       "contract_file": "nodes/n07-read-only-diagnostics-and-validation.json",
       "priority": "P0",
-      "hard_dependencies": [
-        "N02",
-        "N03",
-        "N05",
-        "N06"
-      ],
+      "hard_dependencies": ["N02", "N03", "N05", "N06"],
       "status": "blocked",
       "parallel_execution_eligible": true
     },
@@ -326,10 +155,7 @@
       "id": "N08",
       "contract_file": "nodes/n08-safe-update-uninstall-and-integrity-lifecycle.json",
       "priority": "P0",
-      "hard_dependencies": [
-        "N03",
-        "N06"
-      ],
+      "hard_dependencies": ["N03", "N06"],
       "status": "blocked",
       "parallel_execution_eligible": true
     },
@@ -337,9 +163,7 @@
       "id": "N09",
       "contract_file": "nodes/n09-npm-and-standalone-distribution-artifacts.json",
       "priority": "P0",
-      "hard_dependencies": [
-        "N01"
-      ],
+      "hard_dependencies": ["N01"],
       "status": "blocked",
       "parallel_execution_eligible": true
     },
@@ -347,10 +171,7 @@
       "id": "N10",
       "contract_file": "nodes/n10-repository-convention-analysis-and-local-cache.json",
       "priority": "P1",
-      "hard_dependencies": [
-        "N02",
-        "N03"
-      ],
+      "hard_dependencies": ["N02", "N03"],
       "status": "blocked",
       "parallel_execution_eligible": true
     },
@@ -358,9 +179,7 @@
       "id": "N11",
       "contract_file": "nodes/n11-github-read-adapter-and-issue-plan-drafting.json",
       "priority": "P1",
-      "hard_dependencies": [
-        "N10"
-      ],
+      "hard_dependencies": ["N10"],
       "status": "blocked",
       "parallel_execution_eligible": false
     },
@@ -368,10 +187,7 @@
       "id": "N12",
       "contract_file": "nodes/n12-issue-approvals-idempotent-creation-and-dependency-links.json",
       "priority": "P1",
-      "hard_dependencies": [
-        "N04",
-        "N11"
-      ],
+      "hard_dependencies": ["N04", "N11"],
       "status": "blocked",
       "parallel_execution_eligible": false
     },
@@ -379,10 +195,7 @@
       "id": "N13",
       "contract_file": "nodes/n13-issue-lifecycle-reconciliation-and-recovery-archive.json",
       "priority": "P1",
-      "hard_dependencies": [
-        "N04",
-        "N12"
-      ],
+      "hard_dependencies": ["N04", "N12"],
       "status": "blocked",
       "parallel_execution_eligible": false
     },
@@ -390,10 +203,7 @@
       "id": "N14",
       "contract_file": "nodes/n14-dependency-scheduler-and-isolated-workspace-lifecycle.json",
       "priority": "P1",
-      "hard_dependencies": [
-        "N05",
-        "N13"
-      ],
+      "hard_dependencies": ["N05", "N13"],
       "status": "blocked",
       "parallel_execution_eligible": false
     },
@@ -401,9 +211,7 @@
       "id": "N15",
       "contract_file": "nodes/n15-worker-contract-result-verification-and-bounded-retries.json",
       "priority": "P1",
-      "hard_dependencies": [
-        "N14"
-      ],
+      "hard_dependencies": ["N14"],
       "status": "blocked",
       "parallel_execution_eligible": false
     },
@@ -411,11 +219,7 @@
       "id": "N16",
       "contract_file": "nodes/n16-branch-pr-quality-and-secret-scan-gates.json",
       "priority": "P1",
-      "hard_dependencies": [
-        "N11",
-        "N12",
-        "N15"
-      ],
+      "hard_dependencies": ["N11", "N12", "N15"],
       "status": "blocked",
       "parallel_execution_eligible": false
     },
@@ -423,9 +227,7 @@
       "id": "N17",
       "contract_file": "nodes/n17-review-thread-and-ci-remediation-loop.json",
       "priority": "P1",
-      "hard_dependencies": [
-        "N16"
-      ],
+      "hard_dependencies": ["N16"],
       "status": "blocked",
       "parallel_execution_eligible": true
     },
@@ -433,9 +235,7 @@
       "id": "N18",
       "contract_file": "nodes/n18-branch-protection-and-deployment-observation.json",
       "priority": "P2",
-      "hard_dependencies": [
-        "N16"
-      ],
+      "hard_dependencies": ["N16"],
       "status": "blocked",
       "parallel_execution_eligible": true
     },
@@ -443,10 +243,7 @@
       "id": "N19",
       "contract_file": "nodes/n19-release-proposal-and-approval-gate.json",
       "priority": "P2",
-      "hard_dependencies": [
-        "N09",
-        "N16"
-      ],
+      "hard_dependencies": ["N09", "N16"],
       "status": "blocked",
       "parallel_execution_eligible": true
     },
@@ -454,12 +251,7 @@
       "id": "N20",
       "contract_file": "nodes/n20-lifecycle-notifications-and-opt-in-external-adapters.json",
       "priority": "P2",
-      "hard_dependencies": [
-        "N04",
-        "N13",
-        "N16",
-        "N18"
-      ],
+      "hard_dependencies": ["N04", "N13", "N16", "N18"],
       "status": "blocked",
       "parallel_execution_eligible": true
     },
@@ -467,10 +259,7 @@
       "id": "N21",
       "contract_file": "nodes/n21-marketplace-packaging-adapters.json",
       "priority": "P2",
-      "hard_dependencies": [
-        "N06",
-        "N09"
-      ],
+      "hard_dependencies": ["N06", "N09"],
       "status": "blocked",
       "parallel_execution_eligible": true
     }
@@ -682,45 +471,21 @@
     "successful_nodes_rerun": false,
     "independent_nodes_continue_after_failure": true,
     "workers_optional": true,
-    "main_agent_owns_git_github_and_shared_state": true
+    "main_agent_owns_git_github_and_shared_state": true,
+    "commit_each_independently_verified_work_unit": true,
+    "workers_may_commit": false,
+    "commit_checks": ["npm run format:check", "npm run lint", "npm run typecheck"]
   },
   "success_criteria_coverage": {
-    "SC-01": [
-      "N12",
-      "N16",
-      "N19"
-    ],
-    "SC-02": [
-      "N12"
-    ],
-    "SC-03": [
-      "N06",
-      "N08"
-    ],
-    "SC-04": [
-      "N15"
-    ],
-    "SC-05": [
-      "N14"
-    ],
-    "SC-06": [
-      "N02",
-      "N03",
-      "N04"
-    ],
-    "SC-07": [
-      "N01",
-      "N09"
-    ],
-    "SC-08": [
-      "N10"
-    ],
-    "SC-09": [
-      "N04",
-      "N13"
-    ],
-    "SC-10": [
-      "N04"
-    ]
+    "SC-01": ["N12", "N16", "N19"],
+    "SC-02": ["N12"],
+    "SC-03": ["N06", "N08"],
+    "SC-04": ["N15"],
+    "SC-05": ["N14"],
+    "SC-06": ["N02", "N03", "N04"],
+    "SC-07": ["N01", "N09"],
+    "SC-08": ["N10"],
+    "SC-09": ["N04", "N13"],
+    "SC-10": ["N04"]
   }
 }

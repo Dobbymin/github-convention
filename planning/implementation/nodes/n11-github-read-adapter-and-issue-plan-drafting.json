@@ -2,13 +2,7 @@
   "node_id": "N11",
   "title": "GitHub read adapter and Issue plan drafting",
   "priority": "P1",
-  "prd_requirement_ids": [
-    "FR-CFG-09",
-    "FR-GH-01",
-    "FR-GH-02",
-    "FR-GH-03",
-    "FR-GH-04"
-  ],
+  "prd_requirement_ids": ["FR-CFG-09", "FR-GH-01", "FR-GH-02", "FR-GH-03", "FR-GH-04"],
   "objective": "Use fresh GitHub reads and existing gh auth to inspect repository metadata/taxonomy/templates and produce independent Parent/Sub-issue plans with real dependency and scope analysis.",
   "input": [
     "N02 CLI contract",
@@ -22,9 +16,7 @@
     "validated plan schema",
     "Parent/Sub-issue drafts and true dependency DAG"
   ],
-  "hard_dependencies": [
-    "N10"
-  ],
+  "hard_dependencies": ["N10"],
   "soft_dependencies": [],
   "allowed_files": [
     "packages/github-adapter/read/**",
@@ -39,11 +31,7 @@
     "Only independently implementable/verifiable tasks are separated; no artificial parallelization.",
     "Remote data required for a write is refreshed immediately before that write."
   ],
-  "verification_commands": [
-    "npm test",
-    "npm run typecheck",
-    "npm run lint"
-  ],
+  "verification_commands": ["npm test", "npm run typecheck", "npm run lint"],
   "expected_evidence": [
     "mocked gh contract logs",
     "plan schema validation output",
@@ -53,12 +41,8 @@
   "parallel_execution_eligible": false,
   "risk_classification": "Reversible",
   "undo_classification": "Read-only adapter and local draft generation; preserve project sources and existing templates.",
-  "approval_requirements": [
-    "GitHub Issue approval before implementation"
-  ],
+  "approval_requirements": ["GitHub Issue approval before implementation"],
   "retry_policy": "Initial attempt plus at most 2 retries; auth/permission failures are non-retryable until environment changes.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "N08 and approved Issue required."
-  ]
+  "blocking_reasons": ["N08 and approved Issue required."]
 }

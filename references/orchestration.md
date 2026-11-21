@@ -7,6 +7,7 @@ Use Main Agent only for small or tightly coupled tasks. Use sequential execution
 ## Concurrency
 
 Effective concurrency is the minimum of:
+
 - User/Project configured cap
 - Agent runtime capacity
 - Safe concurrency after file-overlap/dependency analysis
@@ -26,27 +27,34 @@ Orchestrator alone manages branches/worktrees, commits, pushes, Issues, Labels, 
 
 ```markdown
 ## Task Report
+
 - Issue: #123
 - Status: completed | blocked | failed
 
 ### Summary
+
 One or two sentences.
 
 ### Changed Files
+
 - `path/to/file.ts`
 
 ### Tests
+
 - Unit Tests: PASS
 - Integration Tests: PASS
 - Type Check: PASS
 
 ### Technical Decisions
+
 - None.
 
 ### Known Issues
+
 - None.
 
 ### Blockers
+
 - None.
 ```
 

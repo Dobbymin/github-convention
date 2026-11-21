@@ -1,24 +1,17 @@
 {
   "node_id": "N01",
-  "title": "Repository and package foundation",
+  "title": "저장소 및 패키지 기반 구성",
   "priority": "P0",
-  "prd_requirement_ids": [
-    "FR-CLI-01",
-    "FR-CLI-02"
-  ],
-  "objective": "Establish the TypeScript/Node.js monorepo, package boundaries, supported scripts, and cross-platform CI baseline required by all CLI work.",
-  "input": [
-    "PRD Sections 8.1, 11, 13",
-    "SPEC Sections 4, 17, 18",
-    "ROADMAP EPIC 1"
-  ],
+  "prd_requirement_ids": ["FR-CLI-01", "FR-CLI-02"],
+  "objective": "모든 CLI 작업의 기반이 되는 TypeScript/Node.js 모노레포, 패키지 경계, 지원 스크립트, 크로스 플랫폼 CI 기반을 마련한다.",
+  "input": ["PRD.md 8.1, 11, 13절", "SPEC.md 4, 17, 18절", "ROADMAP.md EPIC 1"],
   "expected_output": [
-    "npm workspace and package layout",
-    "CLI/Skill version and compatibility metadata",
-    "format/lint/typecheck/test/build scripts",
+    "npm workspace 및 패키지 구조",
+    "CLI/Skill 버전 및 호환성 메타데이터",
+    "format/lint/typecheck/test/build 스크립트",
     "Commit-time format, lint, and typecheck Git hook",
     "npm prepare hook registration for fresh clones",
-    "macOS/Linux/Windows CI baseline"
+    "macOS/Linux/Windows CI 기반"
   ],
   "hard_dependencies": [],
   "soft_dependencies": [],
@@ -36,12 +29,12 @@
     "README.md",
     "LICENSE",
     "CHANGELOG.md",
-    "contribution/security docs"
+    "기여·보안 문서"
   ],
   "acceptance_criteria": [
-    "TypeScript/Node ESM workspace installs and builds on supported OS families.",
-    "CLI and Skill versions are independently represented and compatibility metadata is validated.",
-    "Baseline scripts and CI cover formatting, lint, type check, unit tests, and build."
+    "지원하는 OS 환경에서 TypeScript/Node ESM workspace 설치와 빌드가 성공한다.",
+    "CLI와 Skill 버전을 각각 관리하고 호환성 메타데이터를 검증한다.",
+    "기본 스크립트와 CI가 포맷, lint, typecheck, 단위 테스트, 빌드를 확인한다."
   ],
   "verification_commands": [
     "npm ci",
@@ -52,21 +45,19 @@
     "npm test"
   ],
   "expected_evidence": [
-    "OS matrix CI run links/logs",
-    "package manifests and lockfile",
-    "command exit codes"
+    "OS별 매트릭스 CI 실행 링크/로그",
+    "패키지 매니페스트와 잠금 파일",
+    "명령별 종료 코드"
   ],
   "execution_owner": "Main Agent",
   "parallel_execution_eligible": false,
   "risk_classification": "Recoverable",
-  "undo_classification": "Remove only files introduced by this node; retain unrelated repository/user files.",
+  "undo_classification": "이 노드에서 추가한 파일만 제거하고, 무관한 저장소/사용자 파일은 보존한다.",
   "approval_requirements": [
-    "GitHub Issue approval before implementation",
-    "Approval before adding/replacing external CI or tools where project policy requires it."
+    "구현 전 GitHub 이슈 승인",
+    "프로젝트 정책상 승인이 필요한 외부 CI 또는 도구 추가/교체 전 승인"
   ],
-  "retry_policy": "Initial attempt plus at most 2 retries; stop early on repeated identical failure.",
+  "retry_policy": "최초 실행 후 최대 2회 재시도한다. 동일한 실패가 반복되면 조기에 중단한다.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "No approved implementation Issue exists yet."
-  ]
+  "blocking_reasons": ["승인된 구현 이슈가 아직 없다."]
 }

@@ -2,20 +2,20 @@
 
 ## 1. Command surface
 
-| Command | Purpose | Mutates? |
-|---|---|---:|
-| `install` | Detect/select Agents; install Global/Project Skill | Yes |
-| `update` | Preview and apply CLI/Skill updates with integrity and 3-way merge | Yes |
-| `uninstall` | Remove only unchanged CLI-owned installation files | Yes |
-| `list` | Show installed Agents, scopes, versions, and link/copy status | No |
-| `doctor` | Diagnose OS, Node, Git, gh auth, Agent paths, permissions, schema, integrity | No (except optional cleanup if explicitly requested) |
-| `init` | Initialise Project Config, canonical Skill folder, ignore rules, and analysis | Yes |
-| `validate` | Validate config, skill metadata, manifests, State, and conventions | No |
-| `status` | Show run/Issue/PR/Agent status | No |
-| `cleanup` | Expired archive cleanup and verified temporary artifact cleanup | Yes |
-| `plan validate` | Validate a generated workflow/Issue plan | No |
-| `plan apply` | Apply an approved plan to GitHub, idempotently | Yes |
-| `state list|show|restore` | Inspect or restore archived execution state | Restore mutates local state |
+| Command         | Purpose                                                                       |                                             Mutates? |
+| --------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------: |
+| `install`       | Detect/select Agents; install Global/Project Skill                            |                                                  Yes |
+| `update`        | Preview and apply CLI/Skill updates with integrity and 3-way merge            |                                                  Yes |
+| `uninstall`     | Remove only unchanged CLI-owned installation files                            |                                                  Yes |
+| `list`          | Show installed Agents, scopes, versions, and link/copy status                 |                                                   No |
+| `doctor`        | Diagnose OS, Node, Git, gh auth, Agent paths, permissions, schema, integrity  | No (except optional cleanup if explicitly requested) |
+| `init`          | Initialise Project Config, canonical Skill folder, ignore rules, and analysis |                                                  Yes |
+| `validate`      | Validate config, skill metadata, manifests, State, and conventions            |                                                   No |
+| `status`        | Show run/Issue/PR/Agent status                                                |                                                   No |
+| `cleanup`       | Expired archive cleanup and verified temporary artifact cleanup               |                                                  Yes |
+| `plan validate` | Validate a generated workflow/Issue plan                                      |                                                   No |
+| `plan apply`    | Apply an approved plan to GitHub, idempotently                                |                                                  Yes |
+| `state list     | show                                                                          |                                             restore` | Inspect or restore archived execution state | Restore mutates local state |
 
 The AI Agent performs semantic project analysis and decides what the plan should contain. The CLI validates and applies deterministic parts of the plan; it must not invent requirements or silently approve actions.
 
@@ -97,16 +97,16 @@ When `--output json` is set, stdout must contain valid JSON only. Human progress
 
 ## 6. Exit codes
 
-| Exit | Meaning |
-|---:|---|
-| 0 | Completed successfully, including a valid dry-run plan |
-| 1 | General operation failure |
-| 2 | Invalid arguments or invalid known configuration |
-| 3 | Approval required / pending |
-| 4 | Authentication or permission failure |
-| 5 | Integrity, merge, or unsafe path conflict |
-| 6 | Lock busy / concurrent operation |
-| 7 | External GitHub/Agent dependency unavailable |
+| Exit | Meaning                                                |
+| ---: | ------------------------------------------------------ |
+|    0 | Completed successfully, including a valid dry-run plan |
+|    1 | General operation failure                              |
+|    2 | Invalid arguments or invalid known configuration       |
+|    3 | Approval required / pending                            |
+|    4 | Authentication or permission failure                   |
+|    5 | Integrity, merge, or unsafe path conflict              |
+|    6 | Lock busy / concurrent operation                       |
+|    7 | External GitHub/Agent dependency unavailable           |
 
 A machine-readable error code in the JSON envelope is more specific than the process exit code.
 

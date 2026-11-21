@@ -24,9 +24,7 @@
     "redacted bounded local log boundary",
     "telemetry-free dependency/network policy"
   ],
-  "hard_dependencies": [
-    "N01"
-  ],
+  "hard_dependencies": ["N01"],
   "soft_dependencies": [],
   "allowed_files": [
     "packages/core/state/**",
@@ -41,11 +39,7 @@
     "Only Orchestrator owns shared State writes; remote status is reconciled from GitHub before dependent actions.",
     "No telemetry/analytics path exists and secret fixtures never appear in outputs/logs."
   ],
-  "verification_commands": [
-    "npm test",
-    "npm run typecheck",
-    "npm run lint"
-  ],
+  "verification_commands": ["npm test", "npm run typecheck", "npm run lint"],
   "expected_evidence": [
     "kill/restart and concurrent-writer test output",
     "JSON integrity checks",
@@ -55,12 +49,8 @@
   "parallel_execution_eligible": true,
   "risk_classification": "Recoverable",
   "undo_classification": "Preserve state and logs; only remove test-owned temporary files after ownership checks.",
-  "approval_requirements": [
-    "GitHub Issue approval before implementation"
-  ],
+  "approval_requirements": ["GitHub Issue approval before implementation"],
   "retry_policy": "Initial attempt plus at most 2 retries; stop early for data-integrity uncertainty.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "N01 and approved Issue required."
-  ]
+  "blocking_reasons": ["N01 and approved Issue required."]
 }

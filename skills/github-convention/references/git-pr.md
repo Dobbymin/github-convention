@@ -1,8 +1,20 @@
 # Git and Pull Request Reference
 
+## Artifact language
+
+Write commit messages (subjects and bodies) and PR titles/bodies in the user's language. For Korean-language work, use Korean for the human-readable text; keep Conventional Commit type prefixes (such as `feat:`), Issue numbers, and required closing keywords such as `Closes #123` unchanged.
+
+## PR template precedence
+
+Use the target repository's existing PR body template, including `.github/pull_request_template.md`, when present. `templates/PULL_REQUEST_TEMPLATE.md` is a reusable default only when the target has no suitable template. Keep the matching Issue close keyword in the PR body; for a Sub-issue PR, close the child Issue rather than its Parent.
+
 ## Git ownership
 
 Orchestrator owns all branch, worktree, rebase, commit, push, PR, and Issue mutations. Workers do not perform Git/GitHub write operations. User owns PR Merge.
+
+## Work-unit commits
+
+Commit each independently scoped work unit after its acceptance criteria and relevant checks pass. Do not leave a completed work unit uncommitted while starting unrelated work. If workers implement separate parts, the Orchestrator verifies and commits each completed unit; workers never commit. A larger Issue may therefore produce multiple commits on its branch.
 
 ## Before creating a PR
 

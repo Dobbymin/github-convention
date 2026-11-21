@@ -6,14 +6,24 @@ This register groups the decisions made during product discovery. It records the
 
 - Issue decomposition is based on independently implementable, verifiable work; avoid unnecessary splitting.
 - Parent Issue and Sub-issue use separate templates.
+- This repository's own GitHub UI uses Markdown templates under `.github/ISSUE_TEMPLATE/` and `.github/pull_request_template.md`; reusable Issue structures live in `docs/issue-templates.md`, and the reusable PR source lives in `templates/PULL_REQUEST_TEMPLATE.md`.
+- The Issue menu provides Parent, Work, Bug, and Follow-up templates; blank Issue creation is disabled. Prompts are Korean, while authored content follows the requester's language.
+- Templates may capture a Parent Issue number, but only an explicit native relationship counts. The Orchestrator links approved Issues it creates through GitHub's Sub-issue API and verifies the parent; manually created Issues are linked in GitHub UI, without an automatic Action.
+- Template frontmatter supplies default Type Labels (`type:epic`, `type:task`, or `type:bug` as appropriate); users change the Type when the work requires another catalog value.
+- Write Issue/PR titles and bodies and commit messages in the user's language. For Korean-language work, write those artifacts in Korean; preserve technical identifiers, Conventional Commit prefixes, Issue numbers, and required closing keywords.
+- Link approved Sub-issues to their Parent using GitHub native parent-child relationships. A checklist in the Parent body is informational and does not replace the native link; hard dependencies remain separate.
 - Issue drafts are presented by Parent group; users can approve/reject groups and edit/approve/reject individual items.
 - Only approved Issue drafts are created. Unapproved drafts remain in local State until explicitly discarded.
 - GitHub native Issue dependencies represent hard blockers; no `blocked` Label is required. Local State tracks runtime status.
+- Label governance: exactly one required Type per Issue; optional Priority with at most one; optional multiple Scopes. Parent Issues use `type:epic`; Sub-issues use the Type matching their work.
+- Reuse semantically compatible existing project Labels and do not create duplicate meanings. Never delete or rename existing Labels without explicit user approval. Do not create `blocked` Labels or use Status Labels by default.
+- When no project taxonomy exists, use `templates/labels.yaml`; compare it with live repository Labels and report compatible, missing, conflicting, deprecated-candidate, and duplicate-candidate entries before any creation. Label creation requires user approval.
 - If a required upstream task is not approved, dependent tasks remain approved but blocked.
 - Code-dependent work starts only after its dependency PR is merged to the default branch and the Issue is closed. Stable API/interface contracts may allow FE/BE parallel work without a hard blocking edge.
 - Parent closes when all Sub-issues close and reopens when a new Sub-issue is added.
 - `gh` CLI auth is preferred; connected Agent GitHub tools are fallback. Do not create/store an additional token by default.
 - Each Sub-issue gets a separate branch and PR. No Draft PR by default. PR title follows project rules; otherwise use Conventional Commit style plus Issue number.
+- The repository PR template uses Korean prompts and includes `Closes #<child-issue>`, change summary, verification results, an acceptance-criteria checklist, and an optional review-focus section. Omit screenshot fields because this repository has no visual UI.
 - Orchestrator performs all Git/GitHub mutations; user merges PRs.
 - Fetch/rebase the latest default branch before PR creation. Rebase open PR branches after another merge only when changed paths/dependencies materially affect them.
 - Inspect Branch Protection first; propose changes and apply only after approval.

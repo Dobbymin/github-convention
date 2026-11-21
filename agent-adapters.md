@@ -6,14 +6,14 @@ The Skill uses an open `SKILL.md` package format. The adapter layer is responsib
 
 ## Initial adapter set
 
-| Adapter ID | Agent | Project Skill path | Global Skill path | Detection hints |
-|---|---|---|---|---|
-| `codex` | OpenAI Codex | `.agents/skills/<name>/` | `~/.agents/skills/<name>/` | `codex` executable and/or known Codex home config |
-| `claude-code` | Claude Code | `.claude/skills/<name>/` | `~/.claude/skills/<name>/` | `claude` executable and/or Claude config directory |
-| `gemini-cli` | Gemini CLI | `.agents/skills/<name>/` or `.gemini/skills/<name>/` | `~/.agents/skills/<name>/` or `~/.gemini/skills/<name>/` | `gemini` executable and Gemini config |
-| `antigravity` | Google Antigravity | `.agents/skills/<name>/` | `~/.gemini/config/skills/<name>/` | `agy`/Antigravity application metadata and known config |
-| `opencode` | OpenCode | `.agents/skills/<name>/` or `.opencode/skills/<name>/` | `~/.agents/skills/<name>/` or `~/.config/opencode/skills/<name>/` | `opencode` executable and OpenCode config |
-| `kilo` | Kilo Code / Kilo CLI | `.agents/skills/<name>/` or `.kilo/skills/<name>/` | `~/.agents/skills/<name>/` or `~/.kilo/skills/<name>/` | `kilo` executable and Kilo config |
+| Adapter ID    | Agent                | Project Skill path                                     | Global Skill path                                                 | Detection hints                                         |
+| ------------- | -------------------- | ------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------- |
+| `codex`       | OpenAI Codex         | `.agents/skills/<name>/`                               | `~/.agents/skills/<name>/`                                        | `codex` executable and/or known Codex home config       |
+| `claude-code` | Claude Code          | `.claude/skills/<name>/`                               | `~/.claude/skills/<name>/`                                        | `claude` executable and/or Claude config directory      |
+| `gemini-cli`  | Gemini CLI           | `.agents/skills/<name>/` or `.gemini/skills/<name>/`   | `~/.agents/skills/<name>/` or `~/.gemini/skills/<name>/`          | `gemini` executable and Gemini config                   |
+| `antigravity` | Google Antigravity   | `.agents/skills/<name>/`                               | `~/.gemini/config/skills/<name>/`                                 | `agy`/Antigravity application metadata and known config |
+| `opencode`    | OpenCode             | `.agents/skills/<name>/` or `.opencode/skills/<name>/` | `~/.agents/skills/<name>/` or `~/.config/opencode/skills/<name>/` | `opencode` executable and OpenCode config               |
+| `kilo`        | Kilo Code / Kilo CLI | `.agents/skills/<name>/` or `.kilo/skills/<name>/`     | `~/.agents/skills/<name>/` or `~/.kilo/skills/<name>/`            | `kilo` executable and Kilo config                       |
 
 Paths are discovery locations from current official documentation at the date of this specification. Do not hard-code the table as unquestionable truth: adapters must probe the path/version and expose the selected target in `doctor` and install previews.
 

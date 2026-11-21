@@ -2,11 +2,7 @@
   "node_id": "N06",
   "title": "Agent installation and canonical Skill source",
   "priority": "P0",
-  "prd_requirement_ids": [
-    "FR-CLI-05",
-    "FR-CLI-06",
-    "FR-CLI-07"
-  ],
+  "prd_requirement_ids": ["FR-CLI-05", "FR-CLI-06", "FR-CLI-07"],
   "objective": "Install one Git-tracked canonical Project Skill across selected Agents/scopes with verified native discovery, symlink, or manifest-managed copy fallback.",
   "input": [
     "N02 CLI contract",
@@ -19,11 +15,7 @@
     "canonical source deployment/link strategy",
     "copy ownership/hash manifest"
   ],
-  "hard_dependencies": [
-    "N02",
-    "N03",
-    "N05"
-  ],
+  "hard_dependencies": ["N02", "N03", "N05"],
   "soft_dependencies": [],
   "allowed_files": [
     "packages/cli/install/**",
@@ -37,11 +29,7 @@
     "Symlinks are preferred where verified; fallback copies record source version and per-file hashes.",
     "Unselected Agents and unrelated configuration remain unchanged."
   ],
-  "verification_commands": [
-    "npm test",
-    "npm run typecheck",
-    "npm run lint"
-  ],
+  "verification_commands": ["npm test", "npm run typecheck", "npm run lint"],
   "expected_evidence": [
     "temporary-home/repository install integration logs",
     "before/after file inventory and hashes",
@@ -57,7 +45,5 @@
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; preserve staging/backups after failure.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "N02, N03, N05 and approved Issue required."
-  ]
+  "blocking_reasons": ["N02, N03, N05 and approved Issue required."]
 }

@@ -2,11 +2,7 @@
   "node_id": "N17",
   "title": "Review-thread and CI remediation loop",
   "priority": "P1",
-  "prd_requirement_ids": [
-    "FR-PR-05",
-    "FR-PR-06",
-    "FR-PR-07"
-  ],
+  "prd_requirement_ids": ["FR-PR-05", "FR-PR-06", "FR-PR-07"],
   "objective": "Classify review feedback and CI failures, automatically handle only straightforward bounded fixes, and leave design or ambiguous threads for user/reviewer input.",
   "input": [
     "N14 open PR and self-review gates",
@@ -19,9 +15,7 @@
     "selective thread resolution",
     "bounded CI retry and escalation"
   ],
-  "hard_dependencies": [
-    "N16"
-  ],
+  "hard_dependencies": ["N16"],
   "soft_dependencies": [],
   "allowed_files": [
     "packages/github-adapter/reviews/**",
@@ -34,11 +28,7 @@
     "Only addressed, verified simple threads are resolved.",
     "Code failures retry at most two times; transient external failures at most three; permission/config failures ask user."
   ],
-  "verification_commands": [
-    "npm test",
-    "npm run typecheck",
-    "npm run lint"
-  ],
+  "verification_commands": ["npm test", "npm run typecheck", "npm run lint"],
   "expected_evidence": [
     "review-thread fixtures and resolution decisions",
     "CI classification/retry logs",
@@ -54,7 +44,5 @@
   ],
   "retry_policy": "Bounded by failure class; identical failures stop early.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "N14 required."
-  ]
+  "blocking_reasons": ["N14 required."]
 }
