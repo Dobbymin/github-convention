@@ -250,3 +250,55 @@ test("installer: global-only install does not create .agents inside projectRoot"
   fs.rmSync(tmpProject, { recursive: true, force: true });
   fs.rmSync(tmpHome, { recursive: true, force: true });
 });
+
+test("CLI install: interactive prompter can select probable agent in text mode", async (t) => {
+  const tmpProject = fs.mkdtempSync(path.join(os.tmpdir(), "inst-prompt-proj-"));
+  t.after(() => fs.rmSync(tmpProject, { recursive: true, force: true }));
+
+  fs.mkdirSync(path.join(tmpProject, ".claude"), { recursive: true });
+
+  let promptCalls = 0;
+  const res = await runCli(
+    ["install", "--project", tmpProject],
+    { stdout: () => {}, stderr: () => {} },
+    {
+      prompter: {
+        async selectTargets(ctx) {
+          promptCalls += 1;
+          const claude = ctx.candidates.find((c) => c.agentId === "claude-code");
+          assert.ok(claude);
+          return [{ agentId: claude.agentId, scope: "project" }];
+        },
+      },
+    },
+  );
+
+  assert.equal(promptCalls, 1);
+  assert.equal(res.exitCode, ExitCodes.SUCCESS);
+  assert.equal(
+    fs.existsSync(path.join(tmpProject, ".claude", "skills", "github-convention", "SKILL.md")),
+    true,
+  );
+});
+
+test("CLI install: --non-interactive never invokes prompter", async (t) => {
+  const tmpProject = fs.mkdtempSync(path.join(os.tmpdir(), "inst-noninteractive-proj-"));
+  t.after(() => fs.rmSync(tmpProject, { recursive: true, force: true }));
+
+  let promptCalls = 0;
+  const res = await runCli(
+    ["install", "--non-interactive", "--dry-run", "--project", tmpProject],
+    { stdout: () => {}, stderr: () => {} },
+    {
+      prompter: {
+        async selectTargets() {
+          promptCalls += 1;
+          return [{ agentId: "codex", scope: "project" }];
+        },
+      },
+    },
+  );
+
+  assert.equal(promptCalls, 0);
+  assert.equal(res.exitCode, ExitCodes.SUCCESS);
+});

@@ -79,7 +79,9 @@ test("init --dry-run leaves directory and git status completely untouched", (t) 
   });
   assert.equal(statusAfter, statusBefore);
   assert.equal(fs.existsSync(path.join(tmpDir, ".github-convention")), false);
+  assert.equal(fs.existsSync(path.join(tmpDir, ".agents")), false);
   assert.equal(fs.existsSync(path.join(tmpDir, ".gitignore")), false);
+  assert.equal(result.plan.canonicalSkillAction.action, "create");
 });
 
 test("init creates config, project conventions, cache, and exact .gitignore without overwriting existing templates", (t) => {
@@ -101,6 +103,10 @@ test("init creates config, project conventions, cache, and exact .gitignore with
   assert.ok(fs.existsSync(path.join(tmpDir, ".github-convention", "config.yaml")));
   assert.ok(fs.existsSync(path.join(tmpDir, ".github-convention", "conventions", "README.md")));
   assert.ok(fs.existsSync(path.join(tmpDir, ".github-convention", "cache", "analysis.json")));
+  assert.ok(fs.existsSync(path.join(tmpDir, ".agents", "skills", "github-convention", "SKILL.md")));
+  assert.ok(
+    fs.existsSync(path.join(tmpDir, ".agents", "skills", "github-convention", ".manifest.json")),
+  );
 
   // Existing .github templates are never overwritten
   assert.equal(

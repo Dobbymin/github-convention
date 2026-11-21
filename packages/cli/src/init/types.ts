@@ -18,6 +18,7 @@ export interface InitPlan {
   analysis: RepositoryAnalysis;
   configAction: PlannedFileAction;
   conventionsAction: PlannedFileAction;
+  canonicalSkillAction: PlannedFileAction;
   ignorePlan: IgnorePlan;
   actions: PlannedFileAction[];
   proposedConfigYaml?: string;

@@ -7,11 +7,17 @@ import {
 import { parseCliArgs, type OutputFormat } from "./options.js";
 import { COMMANDS } from "./commands.js";
 import { formatOutput } from "./formatter.js";
+import type { InstallPrompter } from "./install/index.js";
 import cliPackage from "../package.json" with { type: "json" };
 
 export interface CliIo {
   stdout: (msg: string) => void;
   stderr: (msg: string) => void;
+  prompter?: InstallPrompter;
+}
+
+export interface RunCliOptions {
+  prompter?: InstallPrompter;
 }
 
 export interface CliRunResult {
@@ -63,6 +69,7 @@ export async function runCli(
     stdout: (msg) => process.stdout.write(msg + "\n"),
     stderr: (msg) => process.stderr.write(msg + "\n"),
   },
+  options?: RunCliOptions,
 ): Promise<CliRunResult> {
   let stdoutAccum = "";
   let stderrAccum = "";
@@ -196,7 +203,10 @@ export async function runCli(
     };
   }
 
-  const result = await cmdDef.run({ args: args! });
+  const result = await cmdDef.run({
+    args: args!,
+    prompter: options?.prompter ?? io.prompter,
+  });
   const exitCode = result.exitCode ?? ExitCodes.SUCCESS;
   const status =
     result.status ??

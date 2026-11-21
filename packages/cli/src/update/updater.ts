@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { getAdapter, getAllAdapters } from "@dobbymin/github-convention-agent-adapters";
 import {
   assertCompatibleVersions,
   computeDirectoryManifest,
@@ -9,13 +10,17 @@ import {
   saveManifest,
   type FileHashRecord,
   type InstallManifest,
+  type SkillScope,
   verifyManifestIntegrity,
 } from "@dobbymin/github-convention-core";
 import cliPackage from "../../package.json" with { type: "json" };
+import { resolveSkillSourceDir } from "../install/installer.js";
+import { validateAgentIds } from "../list/index.js";
 import { hashRegularFile, lstatOrNull, resolveInside, safeRelativePath } from "./fs-utils.js";
 import type {
   FileDiffAction,
   FileDiffItem,
+  MultiUpdateResult,
   UpdateOptions,
   UpdatePlan,
   UpdateResult,
@@ -24,8 +29,12 @@ import type {
 const DEFAULT_SKILL_NAME = "github-convention";
 const DEFAULT_SKILL_VERSION = "0.1.0";
 
-const resolveSourceDir = (options: UpdateOptions, projectRoot: string): string =>
-  options.sourceSkillDir ?? path.join(projectRoot, "skills", DEFAULT_SKILL_NAME);
+const resolveSourceDir = (options: UpdateOptions, projectRoot: string): string => {
+  if (options.sourceSkillDir) return options.sourceSkillDir;
+  const localSkillDir = path.join(projectRoot, "skills", DEFAULT_SKILL_NAME);
+  if (fs.existsSync(localSkillDir)) return localSkillDir;
+  return resolveSkillSourceDir(projectRoot, options.sourceSkillDir) ?? localSkillDir;
+};
 
 const describeError = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
@@ -415,4 +424,105 @@ export function executeUpdate(options: UpdateOptions = {}): UpdateResult {
   } finally {
     fs.rmSync(workRoot, { recursive: true, force: true });
   }
+}
+
+const deduplicatePaths = (paths: readonly string[]): string[] => {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const candidate of paths) {
+    const resolved = path.resolve(candidate);
+    if (!seen.has(resolved)) {
+      seen.add(resolved);
+      unique.push(candidate);
+    }
+  }
+  return unique;
+};
+
+export function resolveUpdateTargets(options: UpdateOptions = {}): string[] {
+  const projectRoot = options.projectRoot ?? process.cwd();
+  const homeDir = options.homeDir ?? options.globalRoot ?? os.homedir();
+  const scope = options.scope ?? "project";
+  const scopes: SkillScope[] = scope === "both" ? ["project", "global"] : [scope];
+  const canonicalPath = path.join(projectRoot, ".agents", "skills", DEFAULT_SKILL_NAME);
+
+  if (options.targetDir && (!options.agents || options.agents.length === 0)) {
+    return deduplicatePaths([options.targetDir]);
+  }
+
+  if (options.agents && options.agents.length > 0) {
+    const agentIds = validateAgentIds(options.agents);
+    const resolved: string[] = [];
+    for (const agentId of agentIds) {
+      const adapter = getAdapter(agentId);
+      for (const s of scopes) {
+        const targetPath =
+          s === "project"
+            ? path.join(projectRoot, adapter.paths.projectSkillDir, DEFAULT_SKILL_NAME)
+            : path.join(homeDir, adapter.paths.globalSkillDir, DEFAULT_SKILL_NAME);
+        resolved.push(targetPath);
+      }
+    }
+    return deduplicatePaths(resolved);
+  }
+
+  const discovered: string[] = [];
+  if (scopes.includes("project")) {
+    discovered.push(canonicalPath);
+  }
+
+  for (const adapter of getAllAdapters()) {
+    for (const s of scopes) {
+      const candidatePath =
+        s === "project"
+          ? path.join(projectRoot, adapter.paths.projectSkillDir, DEFAULT_SKILL_NAME)
+          : path.join(homeDir, adapter.paths.globalSkillDir, DEFAULT_SKILL_NAME);
+      if (lstatOrNull(candidatePath) !== null) {
+        discovered.push(candidatePath);
+      }
+    }
+  }
+
+  const unique = deduplicatePaths(discovered);
+  return unique.length > 0 ? unique : [canonicalPath];
+}
+
+export function executeMultiUpdate(options: UpdateOptions = {}): MultiUpdateResult {
+  const targetDirs = resolveUpdateTargets(options);
+  const targets = targetDirs.map((targetDir) => executeUpdate({ ...options, targetDir }));
+
+  const summary: UpdatePlan["summary"] = {
+    add: 0,
+    update: 0,
+    delete: 0,
+    preserve: 0,
+    conflict: 0,
+    unchanged: 0,
+  };
+
+  for (const res of targets) {
+    summary.add += res.plan.summary.add;
+    summary.update += res.plan.summary.update;
+    summary.delete += res.plan.summary.delete;
+    summary.preserve += res.plan.summary.preserve;
+    summary.conflict += res.plan.summary.conflict;
+    summary.unchanged += res.plan.summary.unchanged;
+  }
+
+  const files = targets.flatMap((res) => res.plan.files);
+  const conflicts = targets.flatMap((res) => res.plan.conflicts);
+  const success = targets.every((res) => res.success);
+  const rolledBack = targets.some((res) => res.rolledBack);
+  const firstError = targets.find((res) => !res.success && res.error)?.error;
+
+  return {
+    success,
+    dryRun: options.dryRun ?? false,
+    targets,
+    files,
+    conflicts,
+    summary,
+    ...(rolledBack ? { rolledBack } : {}),
+    ...(firstError !== undefined ? { error: firstError } : {}),
+  };
 }
