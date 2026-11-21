@@ -13,7 +13,7 @@
   "scripts": {
     "prepare": "node scripts/setup-git-hooks.mjs",
     "build": "tsc -b tsconfig.build.json",
-    "format:check": "prettier --check --ignore-path .prettierignore \"package.json\" \"tsconfig*.json\" \"eslint.config.mjs\" \"packages/**/*.ts\" \"packages/**/package.json\"",
+    "format:check": "prettier --check --ignore-path .prettierignore .",
     "lint": "eslint packages --max-warnings=0",
     "typecheck": "tsc -b tsconfig.build.json --pretty false",
     "test": "npm run build && node --test packages/core/dist/compatibility.test.js",

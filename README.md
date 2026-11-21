@@ -16,7 +16,9 @@ It is designed around one principle:
 - [Consolidated decisions](docs/decision-register.md) — grouped record of agreed policies.
 - [CLI contract](docs/cli-contract.md) — commands, flags, output, errors, and approval behavior.
 - [Agent adapters](docs/agent-adapters.md) — detection, capability model, and verified Skill locations.
-- [Issue templates](docs/issue-templates.md) — Parent Issue and Sub-issue templates.
+- [Repository Issue and PR templates](.github/ISSUE_TEMPLATE/01-parent-issue.md) — active GitHub UI templates; PR body template is at `.github/pull_request_template.md`.
+- [Reusable Issue structures](docs/issue-templates.md) — Parent, Sub-issue, and follow-up Issue defaults for target repositories.
+- [Reusable PR body template](templates/PULL_REQUEST_TEMPLATE.md) — source kept in sync with the repository UI template.
 - [Implementation roadmap](ROADMAP.md) — proposed epics and implementation order. These are drafts, not GitHub Issues already created.
 - [Default configuration](examples/config.yaml) — example Global/Project settings.
 - [Example execution state](examples/state.json) — example local state document.

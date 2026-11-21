@@ -22,9 +22,7 @@
     "diff/scope/test verification",
     "failure feedback and retry orchestration"
   ],
-  "hard_dependencies": [
-    "N14"
-  ],
+  "hard_dependencies": ["N14"],
   "soft_dependencies": [],
   "allowed_files": [
     "packages/core/workers/**",
@@ -39,11 +37,7 @@
     "At most two retries after initial attempt; repeated identical/non-retryable errors stop early.",
     "Interrupted workspaces are preserved and ambiguous changes require review."
   ],
-  "verification_commands": [
-    "npm test",
-    "npm run typecheck",
-    "npm run lint"
-  ],
+  "verification_commands": ["npm test", "npm run typecheck", "npm run lint"],
   "expected_evidence": [
     "worker contract tests",
     "scope/diff validation logs",
@@ -54,12 +48,8 @@
   "parallel_execution_eligible": false,
   "risk_classification": "Recoverable",
   "undo_classification": "Retain worker artifacts/reports after failure; only clean verified owned files.",
-  "approval_requirements": [
-    "GitHub Issue approval before implementation"
-  ],
+  "approval_requirements": ["GitHub Issue approval before implementation"],
   "retry_policy": "Initial attempt plus at most 2 retries; identical failure escalates immediately.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "N12 required."
-  ]
+  "blocking_reasons": ["N12 required."]
 }

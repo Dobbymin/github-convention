@@ -3,10 +3,10 @@ schema_version: 1
 # Global defaults are inherited by a Project. Project Config may override
 # selected values; objects merge recursively and arrays replace completely.
 execution:
-  sub_agents: auto                 # auto | enabled | disabled
-  max_parallel_agents: 3           # user-configurable cap; runtime may lower it
+  sub_agents: auto # auto | enabled | disabled
+  max_parallel_agents: 3 # user-configurable cap; runtime may lower it
   retry:
-    worker_max_retries: 2          # retries after the initial attempt
+    worker_max_retries: 2 # retries after the initial attempt
     code_ci_max_retries: 2
     transient_ci_max_retries: 3
 
@@ -15,7 +15,7 @@ archive:
   auto_cleanup_on_cli_start: true
 
 github:
-  auth_preference: gh               # gh first; connected Agent tool fallback
+  auth_preference: gh # gh first; connected Agent tool fallback
   default_branch: detect
   create_draft_pr: false
   require_issue_approval: true

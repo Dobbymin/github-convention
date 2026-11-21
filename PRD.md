@@ -93,18 +93,18 @@ Provide one reusable GitHub development workflow that can be installed in multip
 
 The product will be considered successful when the following criteria are demonstrated by automated tests and controlled dogfooding. Because telemetry is prohibited, these are release/test criteria rather than remotely collected usage metrics.
 
-| ID | Success criterion | Measurement |
-|---|---|---|
-| SC-01 | No protected GitHub mutation occurs without explicit approval | Approval-gate integration and E2E tests |
-| SC-02 | No duplicate Issue is created after a retry or interrupted response | Idempotency fault-injection tests |
-| SC-03 | No existing user file is lost during install, update, migration, or uninstall | Backup/restore and fault-injection tests on all supported OS families |
-| SC-04 | Workers cannot mutate Git/GitHub or shared State through the product workflow | Worker-contract tests and tool-permission tests where supported |
-| SC-05 | Every worker workspace is isolated from other writable worker workspaces | Orchestration integration tests |
-| SC-06 | CLI config, state, and output contracts are stable and validated | Schema and contract tests |
-| SC-07 | Baseline CI passes on macOS, Linux, and Windows | Required CI matrix |
-| SC-08 | Project analysis reprocesses only changed/new source documents | Cache invalidation tests using SHA-256 fixtures |
-| SC-09 | An interrupted run resumes completed and safe work without repeating completed remote actions | Kill/restart E2E tests |
-| SC-10 | No telemetry or analytics traffic is emitted | Dependency inspection and network-isolation tests |
+| ID    | Success criterion                                                                             | Measurement                                                           |
+| ----- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| SC-01 | No protected GitHub mutation occurs without explicit approval                                 | Approval-gate integration and E2E tests                               |
+| SC-02 | No duplicate Issue is created after a retry or interrupted response                           | Idempotency fault-injection tests                                     |
+| SC-03 | No existing user file is lost during install, update, migration, or uninstall                 | Backup/restore and fault-injection tests on all supported OS families |
+| SC-04 | Workers cannot mutate Git/GitHub or shared State through the product workflow                 | Worker-contract tests and tool-permission tests where supported       |
+| SC-05 | Every worker workspace is isolated from other writable worker workspaces                      | Orchestration integration tests                                       |
+| SC-06 | CLI config, state, and output contracts are stable and validated                              | Schema and contract tests                                             |
+| SC-07 | Baseline CI passes on macOS, Linux, and Windows                                               | Required CI matrix                                                    |
+| SC-08 | Project analysis reprocesses only changed/new source documents                                | Cache invalidation tests using SHA-256 fixtures                       |
+| SC-09 | An interrupted run resumes completed and safe work without repeating completed remote actions | Kill/restart E2E tests                                                |
+| SC-10 | No telemetry or analytics traffic is emitted                                                  | Dependency inspection and network-isolation tests                     |
 
 ## 5. Target users and personas
 
@@ -261,102 +261,108 @@ Requirements use the following priority definitions:
 
 ### 8.1 Packaging, CLI, and installation
 
-| ID | Priority | Requirement | Acceptance criteria |
-|---|---|---|---|
-| FR-CLI-01 | P0 | Provide a TypeScript/Node.js CLI named `github-convention` and a Skill package with independent SemVer versions. | CLI and Skill can be released independently; compatibility metadata is checked before install/update/run. |
-| FR-CLI-02 | P0 | Support macOS, Linux, and Windows. | Core CLI, install, update, uninstall, doctor, and validate pass the OS CI matrix. |
-| FR-CLI-03 | P0 | Publish the CLI through npm and standalone artifacts through GitHub Releases. | Release pipeline creates documented artifacts for verified OS/architecture targets; unsupported targets are not advertised. |
-| FR-CLI-04 | P0 | Automatically discover Agent candidates and support multi-select. | Detection reports `confirmed`, `probable`, `unknown`, or `not_found`; only confirmed or explicitly selected probable targets are modified. |
-| FR-CLI-05 | P0 | Allow independent Global/Project/Both scope selection per Agent. | A single install invocation can select multiple Agents with different scopes. |
-| FR-CLI-06 | P0 | Keep one canonical Project Skill source at `.agents/skills/github-convention/`. | Canonical directory is Git-tracked; adapter paths are native discovery, symlink, or manifest-managed copy. |
-| FR-CLI-07 | P0 | Use symlinks where supported and a managed copy fallback otherwise. | Fallback copies have per-file hashes/source version and are never treated as a second canonical source. |
-| FR-CLI-08 | P0 | Provide `install`, `update`, `uninstall`, `list`, `doctor`, `init`, `validate`, `status`, `cleanup`, `plan`, and `state` command families. | CLI contract tests cover each command and its mutation behavior. |
-| FR-CLI-09 | P0 | Support Interactive and Non-interactive operation. | `--non-interactive` never prompts or infers approval; missing required data produces a structured result. |
-| FR-CLI-10 | P0 | Support text/JSON output and stable exit/error codes. | `--output json` produces valid JSON only on stdout; contract tests freeze response envelope and codes. |
-| FR-CLI-11 | P0 | Support `--dry-run` for every mutating command. | Dry run performs read-only inspection only and makes no filesystem, Git, GitHub, configuration, or persistent-state changes. |
-| FR-CLI-12 | P0 | Implement `doctor` and `validate`. | They report OS, runtime, Git/gh authentication, Agent paths/capabilities, config/schema, versions, permissions, and integrity without hidden mutation. |
-| FR-CLI-13 | P1 | Support standalone installation without requiring the user to install Node.js separately. | Standalone artifacts run on the documented supported platform targets. |
+| ID        | Priority | Requirement                                                                                                                                | Acceptance criteria                                                                                                                                    |
+| --------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| FR-CLI-01 | P0       | Provide a TypeScript/Node.js CLI named `github-convention` and a Skill package with independent SemVer versions.                           | CLI and Skill can be released independently; compatibility metadata is checked before install/update/run.                                              |
+| FR-CLI-02 | P0       | Support macOS, Linux, and Windows.                                                                                                         | Core CLI, install, update, uninstall, doctor, and validate pass the OS CI matrix.                                                                      |
+| FR-CLI-03 | P0       | Publish the CLI through npm and standalone artifacts through GitHub Releases.                                                              | Release pipeline creates documented artifacts for verified OS/architecture targets; unsupported targets are not advertised.                            |
+| FR-CLI-04 | P0       | Automatically discover Agent candidates and support multi-select.                                                                          | Detection reports `confirmed`, `probable`, `unknown`, or `not_found`; only confirmed or explicitly selected probable targets are modified.             |
+| FR-CLI-05 | P0       | Allow independent Global/Project/Both scope selection per Agent.                                                                           | A single install invocation can select multiple Agents with different scopes.                                                                          |
+| FR-CLI-06 | P0       | Keep one canonical Project Skill source at `.agents/skills/github-convention/`.                                                            | Canonical directory is Git-tracked; adapter paths are native discovery, symlink, or manifest-managed copy.                                             |
+| FR-CLI-07 | P0       | Use symlinks where supported and a managed copy fallback otherwise.                                                                        | Fallback copies have per-file hashes/source version and are never treated as a second canonical source.                                                |
+| FR-CLI-08 | P0       | Provide `install`, `update`, `uninstall`, `list`, `doctor`, `init`, `validate`, `status`, `cleanup`, `plan`, and `state` command families. | CLI contract tests cover each command and its mutation behavior.                                                                                       |
+| FR-CLI-09 | P0       | Support Interactive and Non-interactive operation.                                                                                         | `--non-interactive` never prompts or infers approval; missing required data produces a structured result.                                              |
+| FR-CLI-10 | P0       | Support text/JSON output and stable exit/error codes.                                                                                      | `--output json` produces valid JSON only on stdout; contract tests freeze response envelope and codes.                                                 |
+| FR-CLI-11 | P0       | Support `--dry-run` for every mutating command.                                                                                            | Dry run performs read-only inspection only and makes no filesystem, Git, GitHub, configuration, or persistent-state changes.                           |
+| FR-CLI-12 | P0       | Implement `doctor` and `validate`.                                                                                                         | They report OS, runtime, Git/gh authentication, Agent paths/capabilities, config/schema, versions, permissions, and integrity without hidden mutation. |
+| FR-CLI-13 | P1       | Support standalone installation without requiring the user to install Node.js separately.                                                  | Standalone artifacts run on the documented supported platform targets.                                                                                 |
 
 ### 8.2 Configuration, project analysis, and customization
 
-| ID | Priority | Requirement | Acceptance criteria |
-|---|---|---|---|
-| FR-CFG-01 | P0 | Support Global Config and Git-tracked Project Config. | Project settings override only supplied keys; defaults are inherited. |
-| FR-CFG-02 | P0 | Merge nested objects recursively; replace arrays entirely when overridden. | Unit tests cover nested objects, arrays, scalars, and missing keys. |
-| FR-CFG-03 | P0 | Treat safety constraints as immutable and non-overridable by Project Config. | Attempts to disable protected approvals, secret redaction, no direct default-branch push, or no agent merge fail validation. |
-| FR-CFG-04 | P0 | Validate known settings strictly and warn on unknown keys. | Invalid known values block the affected operation before side effects; unknown keys produce actionable warnings. |
-| FR-CFG-05 | P0 | Version the configuration schema and provide backup-first automatic migration. | Migration is staged, validated, backed up, and rolled back on failure; semantic conflicts require approval. |
-| FR-CFG-06 | P1 | Inspect existing project instructions and conventions. | Analysis covers relevant instruction files, templates, scripts, CI, labels, and sampled Git patterns. |
-| FR-CFG-07 | P1 | Detect conflicts between project files and Project Config. | Conflicting sources are shown to the user; resolution is saved to avoid repeated prompts. |
-| FR-CFG-08 | P1 | Cache analysis and source hashes locally. | Only changed/new sources are reanalysed; cache is ignored by Git and never overrides current source files. |
-| FR-CFG-09 | P1 | Query live GitHub state immediately before dependent actions. | Issue, dependency, Label, branch, PR, and CI status are not taken from stale local cache for writes. |
-| FR-CFG-10 | P1 | Support project-only convention extensions without modifying the base Skill. | Custom rules live in `.github-convention/conventions/` and selected config keys; base Skill updates do not overwrite them. |
+| ID        | Priority | Requirement                                                                    | Acceptance criteria                                                                                                          |
+| --------- | -------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| FR-CFG-01 | P0       | Support Global Config and Git-tracked Project Config.                          | Project settings override only supplied keys; defaults are inherited.                                                        |
+| FR-CFG-02 | P0       | Merge nested objects recursively; replace arrays entirely when overridden.     | Unit tests cover nested objects, arrays, scalars, and missing keys.                                                          |
+| FR-CFG-03 | P0       | Treat safety constraints as immutable and non-overridable by Project Config.   | Attempts to disable protected approvals, secret redaction, no direct default-branch push, or no agent merge fail validation. |
+| FR-CFG-04 | P0       | Validate known settings strictly and warn on unknown keys.                     | Invalid known values block the affected operation before side effects; unknown keys produce actionable warnings.             |
+| FR-CFG-05 | P0       | Version the configuration schema and provide backup-first automatic migration. | Migration is staged, validated, backed up, and rolled back on failure; semantic conflicts require approval.                  |
+| FR-CFG-06 | P1       | Inspect existing project instructions and conventions.                         | Analysis covers relevant instruction files, templates, scripts, CI, labels, and sampled Git patterns.                        |
+| FR-CFG-07 | P1       | Detect conflicts between project files and Project Config.                     | Conflicting sources are shown to the user; resolution is saved to avoid repeated prompts.                                    |
+| FR-CFG-08 | P1       | Cache analysis and source hashes locally.                                      | Only changed/new sources are reanalysed; cache is ignored by Git and never overrides current source files.                   |
+| FR-CFG-09 | P1       | Query live GitHub state immediately before dependent actions.                  | Issue, dependency, Label, branch, PR, and CI status are not taken from stale local cache for writes.                         |
+| FR-CFG-10 | P1       | Support project-only convention extensions without modifying the base Skill.   | Custom rules live in `.github-convention/conventions/` and selected config keys; base Skill updates do not overwrite them.   |
 
 ### 8.3 Issue planning and GitHub operations
 
-| ID | Priority | Requirement | Acceptance criteria |
-|---|---|---|---|
-| FR-GH-01 | P1 | Prefer existing `gh` authentication; use connected Agent GitHub tools only as fallback. | No additional token is created/stored by default; missing permissions are reported. |
-| FR-GH-02 | P1 | Analyse and reuse existing Label taxonomy and Issue/PR templates. | Existing project patterns take precedence; proposed new labels/templates require approval where they create remote or tracked changes. |
-| FR-GH-03 | P1 | Produce separate Parent Issue and Sub-issue drafts. | Parent has goal/scope/overall acceptance; Sub-issue has context, requirements, tasks, acceptance, dependencies, technical notes, and assumptions. |
-| FR-GH-04 | P1 | Decompose only independently implementable and verifiable tasks. | Plan records file overlap, contract assumptions, dependencies, and acceptance criteria; no artificial splitting solely for parallelism. |
-| FR-GH-05 | P1 | Present draft Issues by Parent with group and individual approval/edit/exclusion. | Only explicitly approved drafts are created; unapproved drafts remain local until discarded. |
-| FR-GH-06 | P1 | Model hard blockers with GitHub native Issue dependencies. | Blocked status is derived from `Blocked by` / `Blocking`; no `blocked` Label is required. |
-| FR-GH-07 | P1 | Create Issues idempotently. | Every generated Issue carries a stable plan/task marker; retries reuse/verify matching Issues rather than duplicating them. |
-| FR-GH-08 | P1 | Keep approved downstream tasks blocked if a prerequisite is excluded or unapproved. | Their approval is not silently revoked and the dependency is retained until safely revised. |
-| FR-GH-09 | P1 | Close Parent when all Sub-issues close and reopen it when a new Sub-issue is added. | Reconciliation tests verify close/reopen behavior and do not close a Parent with any open child. |
-| FR-GH-10 | P1 | Start code-dependent downstream tasks only after upstream PR is merged to default branch and linked Issue is closed. | Scheduler verifies Merge and Issue closure before marking task ready. A stable documented interface may permit parallel work without a hard blocking edge. |
-| FR-GH-11 | P1 | Create a new follow-up Sub-issue after retry exhaustion or a significant discovered follow-up. | The new Issue links back to the failed/original task and is created only after user approval. Priority reflects impact, not failure alone. |
+| ID       | Priority | Requirement                                                                                                                | Acceptance criteria                                                                                                                                                                                                                                                                                                                                    |
+| -------- | -------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| FR-GH-01 | P1       | Prefer existing `gh` authentication; use connected Agent GitHub tools only as fallback.                                    | No additional token is created/stored by default; missing permissions are reported.                                                                                                                                                                                                                                                                    |
+| FR-GH-02 | P1       | Analyse and reuse existing Label taxonomy and Issue/PR templates.                                                          | Existing project patterns take precedence; Label reconciliation uses the default catalog in `templates/labels.yaml`; proposed tracked changes require approval.                                                                                                                                                                                        |
+| FR-GH-03 | P1       | Produce separate Parent Issue and Sub-issue drafts.                                                                        | Parent has goal/scope/overall acceptance; Sub-issue has context, requirements, tasks, acceptance, dependencies, technical notes, and assumptions.                                                                                                                                                                                                      |
+| FR-GH-04 | P1       | Decompose only independently implementable and verifiable tasks.                                                           | Plan records file overlap, contract assumptions, dependencies, and acceptance criteria; no artificial splitting solely for parallelism.                                                                                                                                                                                                                |
+| FR-GH-05 | P1       | Present draft Issues by Parent with group and individual approval/edit/exclusion.                                          | Only explicitly approved drafts are created; unapproved drafts remain local until discarded.                                                                                                                                                                                                                                                           |
+| FR-GH-06 | P1       | Model hard blockers with GitHub native Issue dependencies.                                                                 | Blocked status is derived from `Blocked by` / `Blocking`; no `blocked` Label is required.                                                                                                                                                                                                                                                              |
+| FR-GH-07 | P1       | Create Issues idempotently.                                                                                                | Every generated Issue carries a stable plan/task marker; retries reuse/verify matching Issues rather than duplicating them.                                                                                                                                                                                                                            |
+| FR-GH-08 | P1       | Keep approved downstream tasks blocked if a prerequisite is excluded or unapproved.                                        | Their approval is not silently revoked and the dependency is retained until safely revised.                                                                                                                                                                                                                                                            |
+| FR-GH-09 | P1       | Close Parent when all Sub-issues close and reopen it when a new Sub-issue is added.                                        | Reconciliation tests verify close/reopen behavior and do not close a Parent with any open child.                                                                                                                                                                                                                                                       |
+| FR-GH-10 | P1       | Start code-dependent downstream tasks only after upstream PR is merged to default branch and linked Issue is closed.       | Scheduler verifies Merge and Issue closure before marking task ready. A stable documented interface may permit parallel work without a hard blocking edge.                                                                                                                                                                                             |
+| FR-GH-11 | P1       | Create a new follow-up Sub-issue after retry exhaustion or a significant discovered follow-up.                             | The new Issue links back to the failed/original task and is created only after user approval. Priority reflects impact, not failure alone.                                                                                                                                                                                                             |
+| FR-GH-12 | P1       | Apply Label governance and reconcile proposed Labels against the live repository.                                          | Every Issue has exactly one Type; Priority is optional and at most one; Scope is optional and may include multiple Labels. Existing compatible Labels are reused, and Label changes require explicit approval.                                                                                                                                         |
+| FR-GH-13 | P1       | Write user-facing GitHub artifacts in the user's language.                                                                 | For Korean-language work, Issue/PR titles and bodies and commit messages use Korean, while technical identifiers and required GitHub syntax remain unchanged. English templates cannot override the selected language.                                                                                                                                 |
+| FR-GH-14 | P1       | Represent Parent/Sub-issue plans with GitHub native relationships.                                                         | Approved children are linked to the Parent through the native Sub-issue API and verified after creation; a body checklist alone does not satisfy the relationship. Hard dependencies remain separate native dependency links.                                                                                                                          |
+| FR-GH-15 | P1       | Provide repository-native Markdown templates for Issue and PR creation, separate from reusable target-repository defaults. | `.github/ISSUE_TEMPLATE/` offers Parent, Work, Bug, and Follow-up templates; blank Issues are disabled; Type Labels default by template; `.github/pull_request_template.md` includes the matching Issue close, verification, acceptance criteria, and review focus. Native parent-child links are created through GitHub, not inferred from body text. |
+
+Label policy: use `templates/labels.yaml` when a repository has no project taxonomy. Parent Issues use `type:epic`; Sub-issues use the Type matching their work. Reuse compatible existing Labels and do not create duplicate meanings. Never delete or rename an existing Label without explicit user approval; propose description or color changes separately. GitHub native dependencies replace `blocked` Labels, and Status Labels are not used by default. Reconcile live Labels and report compatible, missing, conflicting, deprecated-candidate, and duplicate-candidate entries before proposing creation. See [`docs/label-policy.md`](docs/label-policy.md).
 
 ### 8.4 Orchestration and workspace management
 
-| ID | Priority | Requirement | Acceptance criteria |
-|---|---|---|---|
-| FR-ORCH-01 | P1 | Allow Main-Agent-only, sequential, or optional parallel execution. | Scheduler selects the simplest safe execution mode; Sub Agents are never mandatory. |
-| FR-ORCH-02 | P1 | Build a dependency DAG and calculate dynamic concurrency. | Effective concurrency never exceeds Global/Project cap or runtime capability and may be lowered by resource, dependency, or file-overlap risk. |
-| FR-ORCH-03 | P1 | Prefer verified native workspace isolation; otherwise use Git Worktree. | Each worker has a distinct writable workspace; unknown native capability is treated as unsupported. |
-| FR-ORCH-04 | P1 | Keep all Git/GitHub mutations in the Orchestrator. | Worker instructions and tests prohibit commit, push, PR, Issue/Label/dependency mutation, merge, thread resolution, and shared State writes. |
-| FR-ORCH-05 | P1 | Provide a standard English worker Task Report. | Report contains Issue, status, summary, changed files, tests, technical decisions, known issues, and blockers. |
-| FR-ORCH-06 | P1 | Inspect worker diffs and rerun relevant tests before integration. | A successful worker report alone cannot mark a task complete. |
-| FR-ORCH-07 | P1 | Continue independent tasks after a worker failure. | Only the failed task and hard dependents stop; independent tasks continue. |
-| FR-ORCH-08 | P1 | Retry a failed worker up to two times after the initial attempt, with early stop for non-retryable/repeated identical errors. | Retry count and reason are persisted; exhausted work becomes an approval-gated follow-up Issue. |
-| FR-ORCH-09 | P1 | Preserve and reconcile existing workspaces after interruption. | Safe work resumes; completed work is skipped; ambiguous uncommitted changes are preserved and require review. |
-| FR-ORCH-10 | P1 | Rebase before PR creation and assess open PRs after other merges. | Latest default branch is fetched before PR; unrelated open branches are not rebased unnecessarily. |
+| ID         | Priority | Requirement                                                                                                                   | Acceptance criteria                                                                                                                            |
+| ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-ORCH-01 | P1       | Allow Main-Agent-only, sequential, or optional parallel execution.                                                            | Scheduler selects the simplest safe execution mode; Sub Agents are never mandatory.                                                            |
+| FR-ORCH-02 | P1       | Build a dependency DAG and calculate dynamic concurrency.                                                                     | Effective concurrency never exceeds Global/Project cap or runtime capability and may be lowered by resource, dependency, or file-overlap risk. |
+| FR-ORCH-03 | P1       | Prefer verified native workspace isolation; otherwise use Git Worktree.                                                       | Each worker has a distinct writable workspace; unknown native capability is treated as unsupported.                                            |
+| FR-ORCH-04 | P1       | Keep all Git/GitHub mutations in the Orchestrator.                                                                            | Worker instructions and tests prohibit commit, push, PR, Issue/Label/dependency mutation, merge, thread resolution, and shared State writes.   |
+| FR-ORCH-05 | P1       | Provide a standard English worker Task Report.                                                                                | Report contains Issue, status, summary, changed files, tests, technical decisions, known issues, and blockers.                                 |
+| FR-ORCH-06 | P1       | Inspect worker diffs and rerun relevant tests before integration.                                                             | A successful worker report alone cannot mark a task complete.                                                                                  |
+| FR-ORCH-07 | P1       | Continue independent tasks after a worker failure.                                                                            | Only the failed task and hard dependents stop; independent tasks continue.                                                                     |
+| FR-ORCH-08 | P1       | Retry a failed worker up to two times after the initial attempt, with early stop for non-retryable/repeated identical errors. | Retry count and reason are persisted; exhausted work becomes an approval-gated follow-up Issue.                                                |
+| FR-ORCH-09 | P1       | Preserve and reconcile existing workspaces after interruption.                                                                | Safe work resumes; completed work is skipped; ambiguous uncommitted changes are preserved and require review.                                  |
+| FR-ORCH-10 | P1       | Rebase before PR creation and assess open PRs after other merges.                                                             | Latest default branch is fetched before PR; unrelated open branches are not rebased unnecessarily.                                             |
 
 ### 8.5 Git, PR, quality, CI, deployment, and release
 
-| ID | Priority | Requirement | Acceptance criteria |
-|---|---|---|---|
-| FR-PR-01 | P1 | Use project-specific branch, commit, and PR naming rules; otherwise apply documented defaults. | Existing project conventions win; fallback output includes Issue number for PR title. |
-| FR-PR-02 | P1 | Create one non-Draft PR per Sub-issue. | Each PR links the matching Issue; user owns Merge. |
-| FR-PR-03 | P1 | Require acceptance criteria, tests, secret scan, self-review, and latest-branch revalidation before PR creation. | PR cannot be created when required checks are missing or failing. |
-| FR-PR-04 | P1 | Classify self-review findings and separate follow-up improvements from current blockers. | Critical correctness/security blockers prevent PR; non-blocking improvements are proposed as approved follow-up Issues. |
-| FR-PR-05 | P1 | Process simple review requests automatically and ask before architecture/business logic/requirement changes. | Existing PR branch is updated; tests and self-review rerun. |
-| FR-PR-06 | P1 | Resolve only simple review threads fully addressed and verified. | Design/discussion threads remain open for reviewer confirmation. |
-| FR-PR-07 | P1 | Classify CI failures and retry within bounded limits. | Code-caused failures retry up to two times; transient external/network errors up to three; permission/config issues ask the user. |
-| FR-QUAL-01 | P1 | Reuse existing formatting, lint, type, test, hook, and secret-scanning tools. | No duplicate tool is installed without a proposal and user approval. |
-| FR-QUAL-02 | P1 | Require secret scanning before commit/push and in CI. | Likely secret findings block the operation; values are redacted from logs and reports. |
-| FR-QUAL-03 | P1 | Propose new Secret Scanner, Git Hook, or CI configuration and require approval before installation/change. | No new tool or configuration is silently installed or replaced. |
-| FR-QUAL-04 | P1 | Apply staged test pipeline: local fast checks; PR Unit/Integration; post-merge full suite/E2E; Release full validation. | CI workflows match stage and do not silently replace existing pipeline. |
-| FR-DEP-01 | P2 | Inspect existing Branch Protection/Rulesets and propose changes. | Applying changes always requires approval; no existing rules are overwritten silently. |
-| FR-DEP-02 | P2 | Inspect deployment and Health Check results after merge. | Transient errors retry within limits; Health Check failure stops further deployment actions. |
-| FR-DEP-03 | P2 | Never perform automatic rollback. | Rollback plan is presented and requires explicit approval. |
-| FR-REL-01 | P2 | Respect existing release rules; otherwise propose SemVer from Conventional Commits. | Proposed version, Breaking Changes, CHANGELOG, and Release Notes are shown for approval. |
-| FR-REL-02 | P2 | Create Git Tag/GitHub Release only after approval. | Non-interactive execution returns `approval_required` and performs no Tag/Release mutation. |
+| ID         | Priority | Requirement                                                                                                             | Acceptance criteria                                                                                                               |
+| ---------- | -------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| FR-PR-01   | P1       | Use project-specific branch, commit, and PR naming rules; otherwise apply documented defaults.                          | Existing project conventions win; fallback output includes Issue number for PR title.                                             |
+| FR-PR-02   | P1       | Create one non-Draft PR per Sub-issue.                                                                                  | Each PR links the matching Issue; user owns Merge.                                                                                |
+| FR-PR-03   | P1       | Require acceptance criteria, tests, secret scan, self-review, and latest-branch revalidation before PR creation.        | PR cannot be created when required checks are missing or failing.                                                                 |
+| FR-PR-04   | P1       | Classify self-review findings and separate follow-up improvements from current blockers.                                | Critical correctness/security blockers prevent PR; non-blocking improvements are proposed as approved follow-up Issues.           |
+| FR-PR-05   | P1       | Process simple review requests automatically and ask before architecture/business logic/requirement changes.            | Existing PR branch is updated; tests and self-review rerun.                                                                       |
+| FR-PR-06   | P1       | Resolve only simple review threads fully addressed and verified.                                                        | Design/discussion threads remain open for reviewer confirmation.                                                                  |
+| FR-PR-07   | P1       | Classify CI failures and retry within bounded limits.                                                                   | Code-caused failures retry up to two times; transient external/network errors up to three; permission/config issues ask the user. |
+| FR-QUAL-01 | P1       | Reuse existing formatting, lint, type, test, hook, and secret-scanning tools.                                           | No duplicate tool is installed without a proposal and user approval.                                                              |
+| FR-QUAL-02 | P1       | Require secret scanning before commit/push and in CI.                                                                   | Likely secret findings block the operation; values are redacted from logs and reports.                                            |
+| FR-QUAL-03 | P1       | Propose new Secret Scanner, Git Hook, or CI configuration and require approval before installation/change.              | No new tool or configuration is silently installed or replaced.                                                                   |
+| FR-QUAL-04 | P1       | Apply staged test pipeline: local fast checks; PR Unit/Integration; post-merge full suite/E2E; Release full validation. | CI workflows match stage and do not silently replace existing pipeline.                                                           |
+| FR-DEP-01  | P2       | Inspect existing Branch Protection/Rulesets and propose changes.                                                        | Applying changes always requires approval; no existing rules are overwritten silently.                                            |
+| FR-DEP-02  | P2       | Inspect deployment and Health Check results after merge.                                                                | Transient errors retry within limits; Health Check failure stops further deployment actions.                                      |
+| FR-DEP-03  | P2       | Never perform automatic rollback.                                                                                       | Rollback plan is presented and requires explicit approval.                                                                        |
+| FR-REL-01  | P2       | Respect existing release rules; otherwise propose SemVer from Conventional Commits.                                     | Proposed version, Breaking Changes, CHANGELOG, and Release Notes are shown for approval.                                          |
+| FR-REL-02  | P2       | Create Git Tag/GitHub Release only after approval.                                                                      | Non-interactive execution returns `approval_required` and performs no Tag/Release mutation.                                       |
 
 ### 8.6 State, privacy, and notifications
 
-| ID | Priority | Requirement | Acceptance criteria |
-|---|---|---|---|
-| FR-STATE-01 | P0 | Store each execution run in a separate local JSON file. | State validates against schema and includes schema version, stable task IDs, approvals, workspaces, checkpoints, and remote sync metadata. |
-| FR-STATE-02 | P0 | Allow only Orchestrator to write shared run State. | Worker writes are rejected by workflow contract; worker reports are ingested by Orchestrator. |
-| FR-STATE-03 | P0 | Persist every State transition immediately with atomic write and lock. | Kill/restart tests show no partially written JSON; concurrent writer receives `LOCK_BUSY`. |
-| FR-STATE-04 | P0 | Treat GitHub as authoritative for remote status and Local State as authoritative for local execution detail. | Resume always fetches relevant remote status and reconciles before action. |
-| FR-STATE-05 | P1 | Store analysis cache, Local State, archive, and logs outside Git tracking. | `init` adds exact ignore patterns without ignoring tracked canonical Skill/config/conventions. |
-| FR-STATE-06 | P1 | Archive completed runs with configurable retention; default 30 days. | Cleanup runs on CLI invocation, never removes active runs, and supports inspect/restore. |
-| FR-STATE-07 | P0 | Disable telemetry and analytics entirely. | No telemetry SDK or usage/error upload; outbound requests are limited to requested operations and configured notification endpoints. |
-| FR-STATE-08 | P0 | Redact tokens, secrets, and sensitive command output from local logs. | Secret fixtures do not appear in CLI stdout/stderr/log files. |
-| FR-NOTIFY-01 | P2 | Notify major events in the active Agent/CLI session; allow optional external adapters. | Start/finish, approval, repeated worker failure, unrecoverable CI, PR ready/Merge waiting, and deployment failure are surfaced; external service is opt-in. |
+| ID           | Priority | Requirement                                                                                                  | Acceptance criteria                                                                                                                                         |
+| ------------ | -------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-STATE-01  | P0       | Store each execution run in a separate local JSON file.                                                      | State validates against schema and includes schema version, stable task IDs, approvals, workspaces, checkpoints, and remote sync metadata.                  |
+| FR-STATE-02  | P0       | Allow only Orchestrator to write shared run State.                                                           | Worker writes are rejected by workflow contract; worker reports are ingested by Orchestrator.                                                               |
+| FR-STATE-03  | P0       | Persist every State transition immediately with atomic write and lock.                                       | Kill/restart tests show no partially written JSON; concurrent writer receives `LOCK_BUSY`.                                                                  |
+| FR-STATE-04  | P0       | Treat GitHub as authoritative for remote status and Local State as authoritative for local execution detail. | Resume always fetches relevant remote status and reconciles before action.                                                                                  |
+| FR-STATE-05  | P1       | Store analysis cache, Local State, archive, and logs outside Git tracking.                                   | `init` adds exact ignore patterns without ignoring tracked canonical Skill/config/conventions.                                                              |
+| FR-STATE-06  | P1       | Archive completed runs with configurable retention; default 30 days.                                         | Cleanup runs on CLI invocation, never removes active runs, and supports inspect/restore.                                                                    |
+| FR-STATE-07  | P0       | Disable telemetry and analytics entirely.                                                                    | No telemetry SDK or usage/error upload; outbound requests are limited to requested operations and configured notification endpoints.                        |
+| FR-STATE-08  | P0       | Redact tokens, secrets, and sensitive command output from local logs.                                        | Secret fixtures do not appear in CLI stdout/stderr/log files.                                                                                               |
+| FR-NOTIFY-01 | P2       | Notify major events in the active Agent/CLI session; allow optional external adapters.                       | Start/finish, approval, repeated worker failure, unrecoverable CI, PR ready/Merge waiting, and deployment failure are surfaced; external service is opt-in. |
 
 ## 9. Business and policy rules
 
@@ -509,13 +515,13 @@ Objects merge recursively; arrays replace; scalars replace. Existing project ins
 
 ### 13.2 CI schedule
 
-| Trigger | Required checks |
-|---|---|
-| Commit / local hooks | format, lint, type-check, staged secret scan where configured |
-| Push / pre-push | fast validation and secret scan |
-| PR open/update | Unit + Integration + secret scan |
-| Merge to default branch | full test suite + E2E |
-| Release | full suite + release packaging + final smoke/deploy validation |
+| Trigger                 | Required checks                                                |
+| ----------------------- | -------------------------------------------------------------- |
+| Commit / local hooks    | format, lint, type-check, staged secret scan where configured  |
+| Push / pre-push         | fast validation and secret scan                                |
+| PR open/update          | Unit + Integration + secret scan                               |
+| Merge to default branch | full test suite + E2E                                          |
+| Release                 | full suite + release packaging + final smoke/deploy validation |
 
 The existing repository pipeline must be inspected before adding or changing workflows. Required PR checks should be the checks configured for Branch Protection; post-merge E2E is an additional integration verification and does not retroactively prevent a merge that has already occurred.
 
@@ -573,20 +579,20 @@ Deliver deployment/Health Check observation, approval-gated rollback, Release pr
 
 ## 15. Risks and mitigations
 
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Agent Skill paths or capabilities change | Install fails or Skill is undiscoverable | Versioned adapters, confidence-based detection, doctor checks, release-time documentation verification |
-| Native worker/workspace support differs | Unsafe or unavailable parallel execution | Capability-based adapter; Worktree fallback; sequential mode always available |
-| Two CLI/Agent sessions operate on one repository | State corruption, branch/worktree races | Project lock, lock owner metadata, stale-lock validation, clear `LOCK_BUSY` outcome |
-| GitHub operation succeeds but response is lost | Duplicate Issue/PR/Label | Stable markers, fresh remote read, idempotent retry |
-| User edits Skill files | Update overwrites customization | SHA-256 manifests, three-way merge, diff preview, backup and rollback |
-| Windows symlink permissions differ | Skill installation fails | Managed-copy fallback and per-platform tests |
-| Project Config conflicts with existing docs | Agent applies inconsistent rules | Source conflict report and persisted user resolution |
-| Worker reports success with incomplete/unsafe code | Defects reach PR | Orchestrator inspects diff and reruns tests independently |
-| Secret scanner false positive/negative | Blocked work or leaked credential | Reuse known tools, redact findings, reviewed exception workflow, CI and local checks |
-| GitHub API/CLI capabilities change | Remote operations break | Adapter boundary, contract tests, `gh` capability checks, dedicated test repo |
-| Marketplace formats differ | Fragmented Skill copies | Canonical Skill source and per-marketplace packaging adapter |
-| Large scope delays first release | No usable product delivered early | P0/P1/P2 sequencing; deliver install/config before full orchestration |
+| Risk                                               | Impact                                   | Mitigation                                                                                             |
+| -------------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Agent Skill paths or capabilities change           | Install fails or Skill is undiscoverable | Versioned adapters, confidence-based detection, doctor checks, release-time documentation verification |
+| Native worker/workspace support differs            | Unsafe or unavailable parallel execution | Capability-based adapter; Worktree fallback; sequential mode always available                          |
+| Two CLI/Agent sessions operate on one repository   | State corruption, branch/worktree races  | Project lock, lock owner metadata, stale-lock validation, clear `LOCK_BUSY` outcome                    |
+| GitHub operation succeeds but response is lost     | Duplicate Issue/PR/Label                 | Stable markers, fresh remote read, idempotent retry                                                    |
+| User edits Skill files                             | Update overwrites customization          | SHA-256 manifests, three-way merge, diff preview, backup and rollback                                  |
+| Windows symlink permissions differ                 | Skill installation fails                 | Managed-copy fallback and per-platform tests                                                           |
+| Project Config conflicts with existing docs        | Agent applies inconsistent rules         | Source conflict report and persisted user resolution                                                   |
+| Worker reports success with incomplete/unsafe code | Defects reach PR                         | Orchestrator inspects diff and reruns tests independently                                              |
+| Secret scanner false positive/negative             | Blocked work or leaked credential        | Reuse known tools, redact findings, reviewed exception workflow, CI and local checks                   |
+| GitHub API/CLI capabilities change                 | Remote operations break                  | Adapter boundary, contract tests, `gh` capability checks, dedicated test repo                          |
+| Marketplace formats differ                         | Fragmented Skill copies                  | Canonical Skill source and per-marketplace packaging adapter                                           |
+| Large scope delays first release                   | No usable product delivered early        | P0/P1/P2 sequencing; deliver install/config before full orchestration                                  |
 
 ## 16. Dependencies and external assumptions
 
@@ -619,16 +625,16 @@ A release must not claim support for an Agent, OS, or architecture until its ada
 
 ## 18. Traceability to design documents
 
-| PRD area | Detailed source |
-|---|---|
-| Architecture and component ownership | [`SPEC.md`](SPEC.md) |
-| Skill workflow and safety instructions | [`skills/github-convention/SKILL.md`](skills/github-convention/SKILL.md) |
-| Agent paths and capabilities | [`docs/agent-adapters.md`](docs/agent-adapters.md) |
-| CLI commands, flags, approvals, errors | [`docs/cli-contract.md`](docs/cli-contract.md) |
-| Parent/Sub-issue templates | [`docs/issue-templates.md`](docs/issue-templates.md) |
-| Consolidated product decisions | [`docs/decision-register.md`](docs/decision-register.md) |
-| Implementation epics and dependencies | [`ROADMAP.md`](ROADMAP.md) |
-| Config and State examples/schemas | [`examples/`](examples/) and [`schemas/`](schemas/) |
+| PRD area                                      | Detailed source                                                                                                                                               |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture and component ownership          | [`SPEC.md`](SPEC.md)                                                                                                                                          |
+| Skill workflow and safety instructions        | [`skills/github-convention/SKILL.md`](skills/github-convention/SKILL.md)                                                                                      |
+| Agent paths and capabilities                  | [`docs/agent-adapters.md`](docs/agent-adapters.md)                                                                                                            |
+| CLI commands, flags, approvals, errors        | [`docs/cli-contract.md`](docs/cli-contract.md)                                                                                                                |
+| Repository UI and reusable Issue/PR templates | [`docs/issue-templates.md`](docs/issue-templates.md), `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`, and `templates/PULL_REQUEST_TEMPLATE.md` |
+| Consolidated product decisions                | [`docs/decision-register.md`](docs/decision-register.md)                                                                                                      |
+| Implementation epics and dependencies         | [`ROADMAP.md`](ROADMAP.md)                                                                                                                                    |
+| Config and State examples/schemas             | [`examples/`](examples/) and [`schemas/`](schemas/)                                                                                                           |
 
 ## 19. Implementation notes (not additional product questions)
 
@@ -639,7 +645,7 @@ The following details are intentionally delegated to implementation spikes and m
 - Choose specific CLI parsing, YAML, schema-validation, and three-way merge libraries after dependency/security review.
 - Verify GitHub native Issue dependency operations and required permissions against the dedicated test repository.
 - Validate standalone binary build targets and Windows symlink/copy behavior.
-- Finalize the default fallback Branch/Commit/Label vocabulary only after analysing a target repository.
+- Use the default Label catalog in `templates/labels.yaml` when a target repository has no governing taxonomy; reconcile compatible existing Labels and surface conflicts before proposing creation.
 - Confirm whether an external notification provider adapter is worth including in the first P2 release.
 
 No further product-discovery questionnaire is required to begin implementation.

@@ -23,23 +23,16 @@ const parseSemVer = (version: string): SemVer | null => {
   };
 };
 
-export const isCompatibleVersion = (
-  version: string,
-  range: string,
-): boolean => {
+export const isCompatibleVersion = (version: string, range: string): boolean => {
   if (!range.startsWith("^")) return false;
   const candidate = parseSemVer(version);
   const minimum = parseSemVer(range.slice(1));
   if (candidate === null || minimum === null) return false;
   if (minimum.major > 0) {
-    return (
-      candidate.major === minimum.major && candidate.minor >= minimum.minor
-    );
+    return candidate.major === minimum.major && candidate.minor >= minimum.minor;
   }
   return (
-    candidate.major === 0 &&
-    candidate.minor === minimum.minor &&
-    candidate.patch >= minimum.patch
+    candidate.major === 0 && candidate.minor === minimum.minor && candidate.patch >= minimum.patch
   );
 };
 

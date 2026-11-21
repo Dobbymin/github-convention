@@ -2,11 +2,7 @@
   "node_id": "N08",
   "title": "Safe update, uninstall, and integrity lifecycle",
   "priority": "P0",
-  "prd_requirement_ids": [
-    "FR-CLI-07",
-    "FR-CLI-08",
-    "FR-CLI-11"
-  ],
+  "prd_requirement_ids": ["FR-CLI-07", "FR-CLI-08", "FR-CLI-11"],
   "objective": "Implement compatibility checks, protected three-way updates, backup/rollback, dry-run lifecycle behavior, and conservative ownership-checked uninstall.",
   "input": [
     "N03 config migration",
@@ -20,10 +16,7 @@
     "ownership-safe uninstall",
     "lifecycle dry-run previews"
   ],
-  "hard_dependencies": [
-    "N03",
-    "N06"
-  ],
+  "hard_dependencies": ["N03", "N06"],
   "soft_dependencies": [],
   "allowed_files": [
     "packages/cli/update/**",
@@ -37,11 +30,7 @@
     "Dry-run makes no filesystem or remote changes.",
     "Compatibility is checked before install/update/run."
   ],
-  "verification_commands": [
-    "npm test",
-    "npm run typecheck",
-    "npm run lint"
-  ],
+  "verification_commands": ["npm test", "npm run typecheck", "npm run lint"],
   "expected_evidence": [
     "fault-injection update/uninstall logs",
     "preserved user-edit fixtures",
@@ -57,7 +46,5 @@
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; repeated integrity failure escalates without destructive retry.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "N03, N06 and approved Issue required."
-  ]
+  "blocking_reasons": ["N03, N06 and approved Issue required."]
 }

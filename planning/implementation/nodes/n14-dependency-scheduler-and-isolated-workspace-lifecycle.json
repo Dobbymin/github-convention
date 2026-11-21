@@ -2,11 +2,7 @@
   "node_id": "N14",
   "title": "Dependency scheduler and isolated workspace lifecycle",
   "priority": "P1",
-  "prd_requirement_ids": [
-    "FR-ORCH-01",
-    "FR-ORCH-02",
-    "FR-ORCH-03"
-  ],
+  "prd_requirement_ids": ["FR-ORCH-01", "FR-ORCH-02", "FR-ORCH-03"],
   "objective": "Schedule ready tasks using hard dependency DAG and dynamic concurrency; use verified native workspace isolation or Orchestrator-owned Git Worktrees.",
   "input": [
     "N11 reconciled task readiness",
@@ -19,10 +15,7 @@
     "resource/conflict-aware concurrency calculation",
     "workspace adapter and Worktree lifecycle"
   ],
-  "hard_dependencies": [
-    "N05",
-    "N13"
-  ],
+  "hard_dependencies": ["N05", "N13"],
   "soft_dependencies": [],
   "allowed_files": [
     "packages/core/scheduler/**",
@@ -34,11 +27,7 @@
     "Concurrency never exceeds configured/runtime limits and decreases for resource, dependency, or file overlap risk.",
     "Unknown native isolation is unsupported; fallback Worktrees are distinct and Orchestrator-owned."
   ],
-  "verification_commands": [
-    "npm test",
-    "npm run typecheck",
-    "npm run lint"
-  ],
+  "verification_commands": ["npm test", "npm run typecheck", "npm run lint"],
   "expected_evidence": [
     "DAG scheduler fixtures",
     "workspace path/inode isolation logs",
@@ -54,7 +43,5 @@
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; halt cleanup on ownership uncertainty.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "N05 and N11 required."
-  ]
+  "blocking_reasons": ["N05 and N11 required."]
 }

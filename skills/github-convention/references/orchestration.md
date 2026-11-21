@@ -7,6 +7,7 @@ Use Main Agent only for small or tightly coupled tasks. Use sequential execution
 ## Concurrency
 
 Effective concurrency is the minimum of:
+
 - User/Project configured cap
 - Agent runtime capacity
 - Safe concurrency after file-overlap/dependency analysis
@@ -22,31 +23,40 @@ Prefer verified native Agent isolation only if each worker receives a distinct w
 
 Orchestrator alone manages branches/worktrees, commits, pushes, Issues, Labels, dependencies, PRs, review resolution, and State. Workers only edit their assigned files and run tests. Workers do not commit or use GitHub write operations.
 
+After verifying a work unit's diff, scope, relevant checks, and secret scan, the Orchestrator commits that unit before moving to unrelated work. Keep incomplete or blocked work uncommitted and report its state. One Issue may produce multiple commits when it contains multiple independently completed work units.
+
 ## Worker report (English only)
 
 ```markdown
 ## Task Report
+
 - Issue: #123
 - Status: completed | blocked | failed
 
 ### Summary
+
 One or two sentences.
 
 ### Changed Files
+
 - `path/to/file.ts`
 
 ### Tests
+
 - Unit Tests: PASS
 - Integration Tests: PASS
 - Type Check: PASS
 
 ### Technical Decisions
+
 - None.
 
 ### Known Issues
+
 - None.
 
 ### Blockers
+
 - None.
 ```
 

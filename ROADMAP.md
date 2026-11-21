@@ -82,9 +82,14 @@ Build a reliable deterministic CLI foundation first, then add GitHub workflow or
 
 - [ ] Implement `gh auth` and permission checks.
 - [ ] Implement repo metadata, labels, Issue, PR, branch, and CI read operations.
+- [ ] Implement project-aware Label reconciliation from `templates/labels.yaml`, including compatible-label reuse and conflict reporting.
+- [ ] Implement approval-gated proposals for missing Labels; never delete or rename existing Labels without explicit user approval.
 - [ ] Implement native Issue dependency operations through supported `gh`/GraphQL interfaces.
 - [ ] Implement project-aware label proposal and existing template reuse.
+- [ ] Use the shared Label policy and catalog in `docs/label-policy.md` and `templates/labels.yaml`.
 - [ ] Implement Issue plan schema and Parent/Sub-issue template rendering.
+- [x] Add repository-native Markdown templates for Parent, Work, Bug, Follow-up, and PR creation under `.github/`; disable blank Issues.
+- [x] Keep target-repository defaults separate in `docs/issue-templates.md` and `templates/PULL_REQUEST_TEMPLATE.md`.
 - [ ] Implement grouped approvals and individual draft edit/exclude.
 - [ ] Implement idempotency markers and duplicate prevention.
 - [ ] Implement Parent auto-close/reopen reconciliation.

@@ -2,13 +2,7 @@
   "node_id": "N10",
   "title": "Repository convention analysis and local cache",
   "priority": "P1",
-  "prd_requirement_ids": [
-    "FR-CFG-06",
-    "FR-CFG-07",
-    "FR-CFG-08",
-    "FR-CFG-10",
-    "FR-STATE-05"
-  ],
+  "prd_requirement_ids": ["FR-CFG-06", "FR-CFG-07", "FR-CFG-08", "FR-CFG-10", "FR-STATE-05"],
   "objective": "Inspect relevant repository instructions/tooling/conventions, report conflicts without choosing silently, cache source hashes incrementally, and initialize project-only conventions and exact ignore rules.",
   "input": [
     "N02 CLI contract",
@@ -22,10 +16,7 @@
     "conflict report/resolution store",
     "project convention initializer and ignore plan"
   ],
-  "hard_dependencies": [
-    "N02",
-    "N03"
-  ],
+  "hard_dependencies": ["N02", "N03"],
   "soft_dependencies": [],
   "allowed_files": [
     "packages/core/analysis/**",
@@ -39,11 +30,7 @@
     "Current source files outrank cache; conflicts remain explicit until user resolution.",
     "Project extensions remain outside base Skill; ignore rules do not hide tracked canonical files/config/conventions."
   ],
-  "verification_commands": [
-    "npm test",
-    "npm run typecheck",
-    "npm run lint"
-  ],
+  "verification_commands": ["npm test", "npm run typecheck", "npm run lint"],
   "expected_evidence": [
     "SHA-256 cache invalidation fixtures",
     "conflict-resolution test output",
@@ -59,7 +46,5 @@
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; stop if source ownership is ambiguous.",
   "current_status": "blocked",
-  "blocking_reasons": [
-    "N02, N03 and approved Issue required."
-  ]
+  "blocking_reasons": ["N02, N03 and approved Issue required."]
 }

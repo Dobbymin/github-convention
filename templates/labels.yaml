@@ -1,0 +1,136 @@
+version: 1
+labels:
+  - name: "type:epic"
+    description: Parent Issue grouping related work
+    color: "5319e7"
+    category: type
+    applicability: parent_issue
+    required: true
+  - name: "type:feature"
+    description: New or improved product capability
+    color: "a2eeef"
+    category: type
+    applicability: sub_issue_or_standalone_issue
+    required: true
+    migrated_from:
+      - enhancement
+  - name: "type:bug"
+    description: Defect or behavior that does not work as intended
+    color: "d73a4a"
+    category: type
+    applicability: sub_issue_or_standalone_issue
+    required: true
+    migrated_from:
+      - bug
+  - name: "type:task"
+    description: Bounded work item that is not a feature, bug, or documentation task
+    color: "0075ca"
+    category: type
+    applicability: sub_issue_or_standalone_issue
+    required: true
+  - name: "type:docs"
+    description: Documentation-only change
+    color: "0075ca"
+    category: type
+    applicability: sub_issue_or_standalone_issue
+    required: true
+    migrated_from:
+      - documentation
+  - name: "type:refactor"
+    description: Internal restructuring without intended behavior change
+    color: "fbca04"
+    category: type
+    applicability: sub_issue_or_standalone_issue
+    required: true
+  - name: "type:test"
+    description: Test coverage or test infrastructure work
+    color: "c2e0c6"
+    category: type
+    applicability: sub_issue_or_standalone_issue
+    required: true
+  - name: "type:chore"
+    description: Maintenance work that does not fit another Type
+    color: "e4e669"
+    category: type
+    applicability: sub_issue_or_standalone_issue
+    required: true
+  - name: "priority:high"
+    description: High-impact work that should be handled ahead of medium and low priority work
+    color: "b60205"
+    category: priority
+    applicability: any_issue
+    required: false
+    migrated_from:
+      - "priority: P0"
+  - name: "priority:medium"
+    description: Important work with no high-priority urgency
+    color: "fbca04"
+    category: priority
+    applicability: any_issue
+    required: false
+  - name: "priority:low"
+    description: Work that can wait behind higher-priority items
+    color: "0e8a16"
+    category: priority
+    applicability: any_issue
+    required: false
+  - name: "scope:cli"
+    description: Command-line interface
+    color: "1d76db"
+    category: scope
+    applicability: any_issue
+    required: false
+  - name: "scope:skill"
+    description: Agent Skill content or behavior
+    color: "0052cc"
+    category: scope
+    applicability: any_issue
+    required: false
+  - name: "scope:adapter"
+    description: Agent or platform adapter
+    color: "5319e7"
+    category: scope
+    applicability: any_issue
+    required: false
+  - name: "scope:github"
+    description: GitHub integration or workflow
+    color: "0366d6"
+    category: scope
+    applicability: any_issue
+    required: false
+  - name: "scope:orchestration"
+    description: Task planning, dependency scheduling, or worker orchestration
+    color: "c5def5"
+    category: scope
+    applicability: any_issue
+    required: false
+  - name: "scope:config"
+    description: Project configuration or configuration schema
+    color: "d4c5f9"
+    category: scope
+    applicability: any_issue
+    required: false
+  - name: "scope:security"
+    description: Security, privacy, or secret handling
+    color: "ee0701"
+    category: scope
+    applicability: any_issue
+    required: false
+  - name: "scope:testing"
+    description: Tests or quality verification
+    color: "bfdadc"
+    category: scope
+    applicability: any_issue
+    required: false
+  - name: "scope:release"
+    description: Packaging, publishing, or release operations
+    color: "0e8a16"
+    category: scope
+    applicability: any_issue
+    required: false
+  - name: "scope:docs"
+    description: Documentation content or documentation tooling
+    color: "0075ca"
+    category: scope
+    applicability: any_issue
+    required: false
