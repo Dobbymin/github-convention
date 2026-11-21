@@ -124,7 +124,7 @@
       "contract_file": "nodes/n04-run-state-atomic-persistence-and-locking.json",
       "priority": "P0",
       "hard_dependencies": ["N01"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": true
     },
     {
