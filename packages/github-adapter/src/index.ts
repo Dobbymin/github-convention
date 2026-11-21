@@ -7,3 +7,4 @@ export * from "./issues/index.js";
 export * from "./lifecycle/index.js";
 export * from "./pull-requests/index.js";
 export * from "./read/index.js";
+export * from "./releases/index.js";

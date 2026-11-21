@@ -12,6 +12,7 @@ export * from "./output/index.js";
 export * from "./plan/index.js";
 export * from "./quality/index.js";
 export * from "./recovery/index.js";
+export * from "./release/index.js";
 export * from "./review/index.js";
 export * from "./scheduler/index.js";
 export * from "./secrets/index.js";
