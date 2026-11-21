@@ -1,4 +1,5 @@
 import * as assert from "node:assert/strict";
+import * as path from "node:path";
 import { test } from "node:test";
 import {
   detectAllAgents,
@@ -57,7 +58,7 @@ test("confidence levels: distinguishes confirmed, probable, unknown, and not_fou
     homeDir: "/mock/home",
     projectDir: "/mock/project",
     commandExists: () => null,
-    dirExists: (p) => p === "/mock/project/.claude",
+    dirExists: (p) => path.normalize(p) === path.normalize("/mock/project/.claude"),
     fileExists: () => false,
   };
   const res3 = claudeAdapter.detect(envUnknown);
