@@ -3,6 +3,8 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
+import { executeInit } from "../init/index.js";
+import { executeInstall } from "../install/index.js";
 import { runCli } from "../runner.js";
 import { runDoctor } from "./doctor.js";
 import { probeAgents, probeConfig, probePermissions, probeSystem, probeTooling } from "./probes.js";
@@ -133,5 +135,70 @@ describe("Doctor Diagnostic System", () => {
     assert.equal(res.envelope.status, "completed");
     const data = res.envelope.data as Record<string, unknown>;
     assert.ok(data.healthy !== undefined);
+  });
+
+  it("recognizes init config, detects tampered agent copy, and surfaces convention conflicts", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "doc-integ-"));
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "doc-integ-home-"));
+    try {
+      executeInit({ projectRoot: tempDir });
+      const cleanReport = runDoctor({
+        projectRoot: tempDir,
+        globalRoot: tempHome,
+        execFn: () => ({ status: 0, stdout: "mock", stderr: "" }),
+      });
+      assert.equal(cleanReport.config.found, true);
+      assert.equal(cleanReport.config.valid, true);
+      assert.equal(
+        path.normalize(cleanReport.config.path ?? ""),
+        path.normalize(path.join(tempDir, ".github-convention", "config.yaml")),
+      );
+      assert.equal(cleanReport.healthy, true);
+
+      executeInstall({
+        targets: [{ agentId: "claude-code", scope: "project" }],
+        projectRoot: tempDir,
+        homeDir: tempHome,
+        forceCopy: true,
+      });
+
+      const claudeSkillMd = path.join(
+        tempDir,
+        ".claude",
+        "skills",
+        "github-convention",
+        "SKILL.md",
+      );
+      fs.appendFileSync(claudeSkillMd, "\n<!-- tampered -->\n", "utf-8");
+
+      const tamperedReport = runDoctor({
+        projectRoot: tempDir,
+        globalRoot: tempHome,
+        execFn: () => ({ status: 0, stdout: "mock", stderr: "" }),
+      });
+      assert.equal(tamperedReport.healthy, false);
+      assert.equal(tamperedReport.checks.find((c) => c.id === "integrity.skill")?.status, "error");
+
+      // Add conflicting branch conventions in CONTRIBUTING.md vs README.md
+      fs.writeFileSync(
+        path.join(tempDir, "README.md"),
+        "Branch format: feat/<issue>-<slug>\n",
+        "utf-8",
+      );
+      fs.writeFileSync(
+        path.join(tempDir, "CONTRIBUTING.md"),
+        "Branch format: feature/<issue>_<slug>\n",
+        "utf-8",
+      );
+      const conflictReport = runDoctor({
+        projectRoot: tempDir,
+        globalRoot: tempHome,
+        execFn: () => ({ status: 0, stdout: "mock", stderr: "" }),
+      });
+      assert.ok(conflictReport.checks.some((c) => c.id === "conventions.conflicts"));
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      fs.rmSync(tempHome, { recursive: true, force: true });
+    }
   });
 });

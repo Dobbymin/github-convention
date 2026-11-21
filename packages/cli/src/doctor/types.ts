@@ -53,11 +53,20 @@ export interface ConfigDiagnostics {
   warnings: string[];
 }
 
+export interface IntegrityTargetResult {
+  agentId: string;
+  scope: string;
+  skillDir: string;
+  manifestFound: boolean;
+  integrity: IntegrityCheckResult | null;
+}
+
 export interface IntegrityDiagnostics {
   installed: boolean;
   skillDir: string | null;
   manifestFound: boolean;
   integrity: IntegrityCheckResult | null;
+  targets?: IntegrityTargetResult[];
 }
 
 export interface PermissionsDiagnostics {

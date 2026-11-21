@@ -25,6 +25,12 @@ const parseScalar = (raw: string): unknown => {
   if (trimmed === "false") {
     return false;
   }
+  if (trimmed === "[]") {
+    return [];
+  }
+  if (trimmed === "{}") {
+    return {};
+  }
   if (/^-?\d+$/.test(trimmed)) {
     return parseInt(trimmed, 10);
   }

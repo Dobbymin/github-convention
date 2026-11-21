@@ -2,6 +2,7 @@ import * as os from "node:os";
 import {
   probeAgents,
   probeConfig,
+  probeConventionConflicts,
   probeIntegrity,
   probePermissions,
   probeSystem,
@@ -16,9 +17,10 @@ export function runDoctor(options: DoctorOptions = {}): DoctorReport {
   const system = probeSystem();
   const tooling = probeTooling(options.execFn);
   const agents = probeAgents(projectRoot, globalRoot);
-  const config = probeConfig(projectRoot, options.configPath);
-  const integrity = probeIntegrity(projectRoot);
+  const config = probeConfig(projectRoot, options.configPath, globalRoot);
+  const integrity = probeIntegrity(projectRoot, globalRoot);
   const permissions = probePermissions(projectRoot);
+  const unresolvedConflicts = probeConventionConflicts(projectRoot);
 
   const checks: DiagnosticItem[] = [];
 
@@ -149,39 +151,74 @@ export function runDoctor(options: DoctorOptions = {}): DoctorReport {
     });
   }
 
-  // Check 7: Skill integrity
-  if (!integrity.installed) {
+  // Check 7: Skill integrity across canonical and all installed agent targets
+  const targets = integrity.targets ?? [];
+  if (!integrity.installed || targets.length === 0) {
     checks.push({
       id: "integrity.skill",
       name: "Skill installation integrity",
       status: "ok",
       message: "Skill is not yet installed in this project (.agents/skills/github-convention).",
     });
-  } else if (!integrity.manifestFound) {
+  } else {
+    const missingManifestTargets = targets.filter((t) => !t.manifestFound);
+    const failedTargets = targets.filter(
+      (t) => t.manifestFound && t.integrity && !t.integrity.valid,
+    );
+
+    if (failedTargets.length > 0) {
+      const details = failedTargets
+        .map((t) => {
+          const items = [
+            ...(t.integrity?.modifiedFiles.map((f) => `modified: ${f}`) ?? []),
+            ...(t.integrity?.missingFiles.map((f) => `missing: ${f}`) ?? []),
+            ...(t.integrity?.unexpectedFiles.map((f) => `unexpected: ${f}`) ?? []),
+          ].join(", ");
+          return `${t.agentId}(${t.scope}): ${items}`;
+        })
+        .join("; ");
+      checks.push({
+        id: "integrity.skill",
+        name: "Skill installation integrity",
+        status: "error",
+        message: `Integrity check failed: ${details}`,
+      });
+    } else if (missingManifestTargets.length > 0) {
+      checks.push({
+        id: "integrity.skill",
+        name: "Skill manifest integrity",
+        status: "warn",
+        message: `Skill directory exists without .manifest.json at: ${missingManifestTargets.map((t) => t.skillDir).join(", ")}`,
+      });
+    } else {
+      checks.push({
+        id: "integrity.skill",
+        name: "Skill installation integrity",
+        status: "ok",
+        message: `All ${targets.length} installed skill target(s) match SHA-256 manifest hashes.`,
+      });
+    }
+  }
+
+  // Check 8: Convention conflicts
+  if (unresolvedConflicts.length > 0) {
+    const conflictSummary = unresolvedConflicts
+      .map(
+        (c) => `${c.topic}: ${c.sources.map((s) => `${s.relativePath}=${s.value}`).join(" vs ")}`,
+      )
+      .join("; ");
     checks.push({
-      id: "integrity.skill",
-      name: "Skill manifest integrity",
+      id: "conventions.conflicts",
+      name: "Repository convention conflicts",
       status: "warn",
-      message: "Skill directory exists but .manifest.json is missing.",
-    });
-  } else if (integrity.integrity?.valid) {
-    checks.push({
-      id: "integrity.skill",
-      name: "Skill installation integrity",
-      status: "ok",
-      message: "All skill files match SHA-256 manifest hashes.",
+      message: `Unresolved convention conflict(s) detected: ${conflictSummary}`,
     });
   } else {
-    const details = [
-      ...(integrity.integrity?.modifiedFiles.map((f) => `modified: ${f}`) ?? []),
-      ...(integrity.integrity?.missingFiles.map((f) => `missing: ${f}`) ?? []),
-      ...(integrity.integrity?.unexpectedFiles.map((f) => `unexpected: ${f}`) ?? []),
-    ].join(", ");
     checks.push({
-      id: "integrity.skill",
-      name: "Skill installation integrity",
-      status: "error",
-      message: `Integrity check failed: ${details}`,
+      id: "conventions.conflicts",
+      name: "Repository convention conflicts",
+      status: "ok",
+      message: "No unresolved convention conflicts detected.",
     });
   }
 

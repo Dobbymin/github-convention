@@ -4,15 +4,20 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { getAllAdapters } from "@dobbymin/github-convention-agent-adapters";
 import {
+  analyzeRepository,
   loadConfigFile,
   loadManifest,
+  resolveConfig,
   validateConfig,
   verifyManifestIntegrity,
+  type ConventionConflict,
 } from "@dobbymin/github-convention-core";
+import { runList } from "../list/index.js";
 import type {
   AgentDiagnosticSummary,
   ConfigDiagnostics,
   IntegrityDiagnostics,
+  IntegrityTargetResult,
   PermissionsDiagnostics,
   SystemDiagnostics,
   ToolingDiagnostics,
@@ -137,27 +142,49 @@ export function probeAgents(
   });
 }
 
+export const findProjectConfigFile = (projectRoot: string): string | null => {
+  const candidates = [
+    path.join(projectRoot, ".github-convention", "config.yaml"),
+    path.join(projectRoot, ".github-convention", "config.yml"),
+    path.join(projectRoot, ".github-convention", "config.json"),
+    path.join(projectRoot, ".github-convention.yaml"),
+    path.join(projectRoot, ".github-convention.yml"),
+    path.join(projectRoot, ".github-convention.json"),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return c;
+    }
+  }
+  return null;
+};
+
+export const findGlobalConfigFile = (globalRoot: string): string | null => {
+  const candidates = [
+    path.join(globalRoot, ".github-convention", "config.yaml"),
+    path.join(globalRoot, ".github-convention", "config.yml"),
+    path.join(globalRoot, ".github-convention", "config.json"),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return c;
+    }
+  }
+  return null;
+};
+
 export function probeConfig(
   projectRoot: string = process.cwd(),
   explicitConfigPath?: string,
+  globalRoot: string = os.homedir(),
 ): ConfigDiagnostics {
-  let configPath: string | null = explicitConfigPath ?? null;
+  const configPath: string | null = explicitConfigPath ?? findProjectConfigFile(projectRoot);
+  const globalConfigPath = findGlobalConfigFile(globalRoot);
 
-  if (!configPath) {
-    const candidates = [
-      path.join(projectRoot, ".github-convention.yaml"),
-      path.join(projectRoot, ".github-convention.yml"),
-      path.join(projectRoot, ".github-convention.json"),
-    ];
-    for (const c of candidates) {
-      if (fs.existsSync(c)) {
-        configPath = c;
-        break;
-      }
-    }
-  }
+  const hasProject = Boolean(configPath && fs.existsSync(configPath));
+  const hasGlobal = Boolean(globalConfigPath && fs.existsSync(globalConfigPath));
 
-  if (!configPath || !fs.existsSync(configPath)) {
+  if (!hasProject && !hasGlobal) {
     return {
       found: false,
       path: configPath,
@@ -168,20 +195,40 @@ export function probeConfig(
   }
 
   try {
-    const parsed = loadConfigFile(configPath);
-    const validation = validateConfig(parsed);
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    if (hasProject && configPath) {
+      const parsed = loadConfigFile(configPath);
+      const validation = validateConfig(parsed);
+      errors.push(...validation.errors.map((e) => `[${e.path}] ${e.message}`));
+      warnings.push(...validation.warnings.map((w) => `[${w.path}] ${w.message}`));
+    }
+
+    if (errors.length === 0) {
+      const resolved = resolveConfig({
+        ...(hasGlobal && globalConfigPath ? { globalConfigPath } : {}),
+        ...(hasProject && configPath ? { projectConfigPath: configPath } : {}),
+      });
+      for (const w of resolved.warnings) {
+        const msg = `[${w.path}] ${w.message}`;
+        if (!warnings.includes(msg)) {
+          warnings.push(msg);
+        }
+      }
+    }
 
     return {
       found: true,
-      path: configPath,
-      valid: validation.valid,
-      errors: validation.errors.map((e) => `[${e.path}] ${e.message}`),
-      warnings: validation.warnings.map((w) => `[${w.path}] ${w.message}`),
+      path: configPath ?? globalConfigPath,
+      valid: errors.length === 0,
+      errors,
+      warnings,
     };
   } catch (err) {
     return {
       found: true,
-      path: configPath,
+      path: configPath ?? globalConfigPath,
       valid: false,
       errors: [err instanceof Error ? err.message : String(err)],
       warnings: [],
@@ -189,34 +236,84 @@ export function probeConfig(
   }
 }
 
-export function probeIntegrity(projectRoot: string = process.cwd()): IntegrityDiagnostics {
+export function probeIntegrity(
+  projectRoot: string = process.cwd(),
+  globalRoot: string = os.homedir(),
+): IntegrityDiagnostics {
   const canonicalDir = path.join(projectRoot, ".agents", "skills", "github-convention");
-  if (!fs.existsSync(canonicalDir)) {
+  const seen = new Set<string>();
+  const targets: IntegrityTargetResult[] = [];
+
+  const inspectDir = (agentId: string, scope: string, skillDir: string): void => {
+    const resolved = path.resolve(skillDir);
+    if (seen.has(resolved)) return;
+    seen.add(resolved);
+
+    if (!fs.existsSync(resolved)) return;
+    try {
+      if (fs.lstatSync(resolved).isSymbolicLink()) return;
+    } catch {
+      return;
+    }
+
+    const manifest = loadManifest(resolved);
+    if (!manifest) {
+      targets.push({
+        agentId,
+        scope,
+        skillDir: resolved,
+        manifestFound: false,
+        integrity: null,
+      });
+      return;
+    }
+
+    targets.push({
+      agentId,
+      scope,
+      skillDir: resolved,
+      manifestFound: true,
+      integrity: verifyManifestIntegrity(resolved, manifest),
+    });
+  };
+
+  inspectDir("canonical", "project", canonicalDir);
+
+  const listResult = runList({ projectRoot, homeDir: globalRoot });
+  for (const agent of listResult.agents) {
+    if (agent.project.installed && !agent.project.symlink) {
+      inspectDir(agent.agentId, "project", agent.project.path);
+    }
+    if (agent.global.installed && !agent.global.symlink) {
+      inspectDir(agent.agentId, "global", agent.global.path);
+    }
+  }
+
+  if (targets.length === 0) {
     return {
       installed: false,
       skillDir: canonicalDir,
       manifestFound: false,
       integrity: null,
+      targets: [],
     };
   }
 
-  const manifest = loadManifest(canonicalDir);
-  if (!manifest) {
-    return {
-      installed: true,
-      skillDir: canonicalDir,
-      manifestFound: false,
-      integrity: null,
-    };
-  }
-
-  const integrity = verifyManifestIntegrity(canonicalDir, manifest);
+  const canonicalTarget = targets.find((t) => t.agentId === "canonical") ?? targets[0];
   return {
     installed: true,
-    skillDir: canonicalDir,
-    manifestFound: true,
-    integrity,
+    skillDir: canonicalTarget.skillDir,
+    manifestFound: targets.every((t) => t.manifestFound),
+    integrity: canonicalTarget.integrity,
+    targets,
   };
+}
+
+export function probeConventionConflicts(
+  projectRoot: string = process.cwd(),
+): ConventionConflict[] {
+  const { analysis } = analyzeRepository({ projectRoot, dryRun: true });
+  return analysis.conflicts.filter((c) => c.status === "unresolved");
 }
 
 export function probePermissions(projectRoot: string = process.cwd()): PermissionsDiagnostics {
