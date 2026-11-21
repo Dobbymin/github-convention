@@ -106,3 +106,43 @@ test("CLI status command emits valid JSON envelope with real state data", async 
   assert.equal(parsed.data.activeCount, 1);
   assert.equal(parsed.data.latestRun?.runId, "run-cli");
 });
+
+test("runStatus includes per-task Issue/PR summary and installed Agent summary", () => {
+  const projectDir = createTempDir();
+  const homeDir = createTempDir();
+  try {
+    const activeDir = getActiveStateDir(projectDir);
+    fs.mkdirSync(activeDir, { recursive: true });
+    const manager = new StateManager({ stateDir: activeDir, role: "orchestrator" });
+    manager.save(
+      makeExecutionState({
+        runId: "run-summary",
+        status: "in_progress",
+        tasks: [
+          {
+            stableId: "TASK-1",
+            title: "Wire CLI",
+            status: "completed",
+            dependsOn: [],
+            issueNumber: 61,
+            pr: { number: 70, url: "https://github.com/Dobbymin/github-convention/pull/70" },
+          },
+        ],
+      }),
+    );
+
+    const installedDir = path.join(projectDir, ".agents", "skills", "github-convention");
+    fs.mkdirSync(installedDir, { recursive: true });
+    fs.writeFileSync(path.join(installedDir, "SKILL.md"), "# Skill\n", "utf-8");
+
+    const result = runStatus({ projectRoot: projectDir, homeDir });
+    assert.equal(result.latestRun?.issueCount, 1);
+    assert.equal(result.latestRun?.completedTaskCount, 1);
+    assert.equal(result.latestRun?.tasks[0]?.issueNumber, 61);
+    assert.equal(result.latestRun?.tasks[0]?.prNumber, 70);
+    assert.ok(result.agents.installedCount >= 1);
+  } finally {
+    fs.rmSync(projectDir, { recursive: true, force: true });
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  }
+});

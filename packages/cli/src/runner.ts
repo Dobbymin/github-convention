@@ -1,11 +1,16 @@
+import * as os from "node:os";
 import {
+  cleanupExpiredArchives,
   createOutputEnvelope,
+  DEFAULT_CONFIG,
   ExitCodes,
   ErrorCodes,
+  resolveConfig,
   type OutputEnvelope,
 } from "@dobbymin/github-convention-core";
 import { parseCliArgs, type OutputFormat } from "./options.js";
 import { COMMANDS } from "./commands.js";
+import { findGlobalConfigFile, findProjectConfigFile } from "./doctor/probes.js";
 import { formatOutput } from "./formatter.js";
 import type { InstallPrompter } from "./install/index.js";
 import cliPackage from "../package.json" with { type: "json" };
@@ -201,6 +206,33 @@ export async function runCli(
       stdoutText: stdoutAccum,
       stderrText: stderrAccum,
     };
+  }
+
+  if (!args!.options.dryRun) {
+    try {
+      const projectRoot = args!.options.project ?? process.cwd();
+      const projectConfigPath =
+        args!.options.config ?? findProjectConfigFile(projectRoot) ?? undefined;
+      const globalConfigPath = findGlobalConfigFile(os.homedir()) ?? undefined;
+      let archiveConfig = DEFAULT_CONFIG.archive;
+      try {
+        const resolved = resolveConfig({
+          ...(globalConfigPath ? { globalConfigPath } : {}),
+          ...(projectConfigPath ? { projectConfigPath } : {}),
+        });
+        archiveConfig = resolved.config.archive;
+      } catch {
+        archiveConfig = DEFAULT_CONFIG.archive;
+      }
+      if (archiveConfig.auto_cleanup_on_cli_start) {
+        cleanupExpiredArchives(projectRoot, {
+          retentionDays: archiveConfig.retention_days,
+          dryRun: false,
+        });
+      }
+    } catch {
+      // Startup archive cleanup must never block CLI command execution
+    }
   }
 
   const result = await cmdDef.run({

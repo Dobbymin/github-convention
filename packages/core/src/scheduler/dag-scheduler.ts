@@ -1,3 +1,4 @@
+import { pathsOverlap } from "../plan/plan-validator.js";
 import type {
   ConcurrencyInputs,
   ExecutionMode,
@@ -6,12 +7,11 @@ import type {
   ScheduleWaveResult,
 } from "./types.js";
 
-const normalizePathPattern = (value: string): string => value.replaceAll("\\", "/").trim();
-
 const hasFileOverlap = (a: readonly string[], b: readonly string[]): boolean => {
-  const setA = new Set(a.map(normalizePathPattern));
-  for (const item of b) {
-    if (setA.has(normalizePathPattern(item))) return true;
+  for (const itemA of a) {
+    for (const itemB of b) {
+      if (pathsOverlap(itemA, itemB)) return true;
+    }
   }
   return false;
 };

@@ -42,6 +42,18 @@ test("scheduleReadyTasks: blocks failed dependents, continues independent tasks,
   assert.deepEqual(wave.blockedTaskIds, ["B"]);
 });
 
+test("scheduleReadyTasks: defers glob/prefix overlapping paths such as packages/core/** and packages/core/src/index.ts", () => {
+  const tasks: SchedulableTask[] = [
+    { id: "T1", hardDependencies: [], allowedFiles: ["packages/core/**"] },
+    { id: "T2", hardDependencies: [], allowedFiles: ["packages/core/src/index.ts"] },
+    { id: "T3", hardDependencies: [], allowedFiles: ["packages/cli/src/index.ts"] },
+  ];
+
+  const wave = scheduleReadyTasks(tasks, new Set(), new Set(), 4);
+  assert.deepEqual(wave.readyTaskIds, ["T1", "T3"]);
+  assert.deepEqual(wave.deferredConflictTaskIds, ["T2"]);
+});
+
 test("selectExecutionMode: picks simplest safe mode", () => {
   const single: SchedulableTask[] = [{ id: "A", hardDependencies: [], allowedFiles: ["a.ts"] }];
   assert.equal(
