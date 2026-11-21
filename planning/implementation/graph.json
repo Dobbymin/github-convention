@@ -116,7 +116,7 @@
       "contract_file": "nodes/n03-configuration-schema-merge-and-migrations.json",
       "priority": "P0",
       "hard_dependencies": ["N01"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": true
     },
     {
