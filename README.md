@@ -39,6 +39,34 @@ It is designed around one principle:
 - No real Project/GitHub Issue is created by reading this specification.
 - The repository's canonical Project Skill source is `.agents/skills/github-convention/` and is Git-tracked. Generated compatibility copies are derived files and should be ignored by Git.
 
+## CLI Quickstart
+
+```bash
+# Build workspace packages
+npm run build
+
+# Diagnose runtime, Git, gh auth, and detected agents
+node packages/cli/dist/index.js doctor --output json
+
+# Initialize project conventions and .gitignore rules
+node packages/cli/dist/index.js init --dry-run
+node packages/cli/dist/index.js init
+
+# Install canonical skill to project or global agent directories
+node packages/cli/dist/index.js install --agent codex,claude-code,antigravity,copilot --scope global
+node packages/cli/dist/index.js list --output json
+
+# Validate config, SKILL.md frontmatter, and manifest integrity
+node packages/cli/dist/index.js validate --output json
+
+# Inspect run state and plans
+node packages/cli/dist/index.js status --output json
+node packages/cli/dist/index.js plan validate
+node packages/cli/dist/index.js state list
+```
+
+Supported agent adapters: `codex`, `claude-code`, `gemini-cli`, `antigravity`, `opencode`, `kilo`, and `copilot`.
+
 ## Development
 
 The repository is an npm workspace and requires Node.js 22 or later.
@@ -56,7 +84,7 @@ npm test
 
 ## Status
 
-The package foundation is in progress. Platform paths and discovery behavior can evolve; the CLI must validate the installed agent's actual capabilities and avoid relying on a hard-coded assumption when detection is ambiguous.
+`v0.1.0` implementation graph (`N01`–`N21`) and CLI command wiring (`install`, `list`, `status`, `doctor`, `init`, `validate`, `update`, `uninstall`, `plan`, `state`, `cleanup`) are complete and verified across Linux, macOS, and Windows CI. Platform paths and discovery behavior can evolve; the CLI validates installed agent capabilities and avoids relying on hard-coded assumptions when detection is ambiguous.
 
 ## License
 
