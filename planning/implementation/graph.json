@@ -140,7 +140,7 @@
       "contract_file": "nodes/n06-agent-installation-and-canonical-skill-source.json",
       "priority": "P0",
       "hard_dependencies": ["N02", "N03", "N05"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": false
     },
     {

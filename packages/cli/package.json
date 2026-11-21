@@ -8,6 +8,7 @@
     "github-convention": "./dist/index.js"
   },
   "dependencies": {
+    "@github-convention/agent-adapters": "0.1.0",
     "@github-convention/core": "0.1.0"
   }
 }
