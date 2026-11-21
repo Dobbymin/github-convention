@@ -10,5 +10,7 @@
   "repository": "https://github.com/Dobbymin/github-convention",
   "license": "MIT",
   "keywords": ["github", "git", "workflow", "convention", "issues", "pr", "agent-skill"],
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "commands": "./commands/",
+  "hooks": "./hooks/hooks.json"
 }
