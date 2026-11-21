@@ -45,6 +45,6 @@
     "Approval before writing project config or ignore rules where preview indicates tracked changes."
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; stop if source ownership is ambiguous.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N02, N03 and approved Issue required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }

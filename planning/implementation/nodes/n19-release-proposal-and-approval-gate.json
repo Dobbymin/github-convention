@@ -38,6 +38,6 @@
     "Explicit approval before Tag/Release creation."
   ],
   "retry_policy": "Initial attempt plus at most 2 retries for local processing; remote mutation retries require fresh idempotency checks.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N09, N16 and approved Issue required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }

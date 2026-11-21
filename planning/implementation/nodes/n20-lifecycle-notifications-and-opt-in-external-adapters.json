@@ -35,6 +35,6 @@
     "Explicit opt-in and configuration before external notifications."
   ],
   "retry_policy": "Initial attempt plus at most 2 retries for local processing; external failures do not trigger duplicate sends without idempotency checks.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N04, N13, N16, N18 and approved Issue required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }

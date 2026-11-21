@@ -42,6 +42,6 @@
     "Approval before deleting ambiguous workspaces."
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; halt cleanup on ownership uncertainty.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N05 and N11 required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }

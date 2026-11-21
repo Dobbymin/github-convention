@@ -44,6 +44,6 @@
     "Explicit user approval for each GitHub Issue creation and remote dependency mutation."
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; on ambiguous remote result, query and reconcile before retry.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N04, N09 and approved Issue required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }

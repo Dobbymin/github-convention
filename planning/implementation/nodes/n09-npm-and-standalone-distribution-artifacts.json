@@ -43,6 +43,6 @@
     "Explicit user approval before publishing packages or releases."
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; repeated integrity failure escalates without destructive retry.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N01 and approved Issue required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }

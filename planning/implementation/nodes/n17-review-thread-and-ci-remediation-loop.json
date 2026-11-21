@@ -43,6 +43,6 @@
     "Explicit user approval for architecture/business/requirements changes."
   ],
   "retry_policy": "Bounded by failure class; identical failures stop early.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N14 required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }

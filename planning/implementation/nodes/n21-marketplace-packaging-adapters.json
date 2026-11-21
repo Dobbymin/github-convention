@@ -29,6 +29,6 @@
     "Explicit user approval before marketplace publication."
   ],
   "retry_policy": "Initial attempt plus at most 2 retries for local processing; external failures do not trigger duplicate sends without idempotency checks.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N06, N09 and approved Issue required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }
