@@ -6,6 +6,10 @@
     "outDir": "./dist",
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
-  "references": [{ "path": "../core" }, { "path": "../agent-adapters" }],
+  "references": [
+    { "path": "../core" },
+    { "path": "../agent-adapters" },
+    { "path": "../github-adapter" }
+  ],
   "include": ["src/**/*.ts"]
 }

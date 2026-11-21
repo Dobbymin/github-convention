@@ -2,6 +2,7 @@ import { ExitCodes, ErrorCodes, type OutputError } from "@github-convention/core
 import { runDoctor } from "./doctor/index.js";
 import { executeInit } from "./init/index.js";
 import type { ParsedCliArgs } from "./options.js";
+import { runPlanApply, runPlanValidate } from "./plan/index.js";
 import { executeUninstall } from "./uninstall/index.js";
 import { executeUpdate } from "./update/index.js";
 import { runValidate } from "./validate/index.js";
@@ -166,7 +167,7 @@ export const COMMANDS: Record<string, CommandDefinition> = {
   list: {
     name: "list",
     mutates: false,
-    run(ctx) {
+    async run(ctx) {
       return {
         exitCode: ExitCodes.SUCCESS,
         status: "completed",
@@ -181,7 +182,7 @@ export const COMMANDS: Record<string, CommandDefinition> = {
   doctor: {
     name: "doctor",
     mutates: false,
-    run(ctx) {
+    async run(ctx) {
       const report = runDoctor({
         projectRoot: ctx.args.options.project,
         configPath: ctx.args.options.config,
@@ -242,7 +243,7 @@ export const COMMANDS: Record<string, CommandDefinition> = {
   validate: {
     name: "validate",
     mutates: false,
-    run(ctx) {
+    async run(ctx) {
       const res = runValidate({
         projectRoot: ctx.args.options.project,
         configPath: ctx.args.options.config,
@@ -273,7 +274,7 @@ export const COMMANDS: Record<string, CommandDefinition> = {
   status: {
     name: "status",
     mutates: false,
-    run(ctx) {
+    async run(ctx) {
       return {
         exitCode: ExitCodes.SUCCESS,
         status: "completed",
@@ -314,7 +315,7 @@ export const COMMANDS: Record<string, CommandDefinition> = {
     name: "plan",
     subcommands: ["validate", "apply"],
     mutates: false,
-    run(ctx) {
+    async run(ctx) {
       const sub = ctx.args.subcommand;
       if (!sub) {
         return {
@@ -330,18 +331,45 @@ export const COMMANDS: Record<string, CommandDefinition> = {
       }
 
       if (sub === "validate") {
+        const result = runPlanValidate({
+          projectRoot: ctx.args.options.project,
+        });
+        if (!result.valid) {
+          return {
+            exitCode: ExitCodes.INVALID_ARGUMENTS,
+            status: "failed",
+            data: {
+              subcommand: "validate",
+              valid: false,
+              ...(result.planId !== undefined ? { planId: result.planId } : {}),
+              ...(result.validation !== undefined ? { validation: result.validation } : {}),
+            },
+            errors: (result.validation?.errors ?? []).map((err) => ({
+              code: err.code,
+              message: err.message,
+            })),
+          };
+        }
         return {
           exitCode: ExitCodes.SUCCESS,
           status: "completed",
           data: {
             subcommand: "validate",
             valid: true,
+            ...(result.planId !== undefined ? { planId: result.planId } : {}),
+            ...(result.validation !== undefined ? { validation: result.validation } : {}),
           },
         };
       }
 
       if (sub === "apply") {
-        if (ctx.args.options.dryRun) {
+        const applied = await runPlanApply({
+          projectRoot: ctx.args.options.project,
+          dryRun: ctx.args.options.dryRun,
+          nonInteractive: ctx.args.options.nonInteractive,
+        });
+
+        if (applied.dryRun) {
           return {
             exitCode: ExitCodes.SUCCESS,
             status: "completed",
@@ -349,12 +377,12 @@ export const COMMANDS: Record<string, CommandDefinition> = {
               dryRun: true,
               command: "plan apply",
               actions: ["inspect_remote_state", "preview_plan_issues"],
+              ...(applied.result !== undefined ? { result: applied.result } : {}),
             },
           };
         }
 
-        // Policy-protected action: creating issues from plan requires human approval
-        if (ctx.args.options.nonInteractive) {
+        if (applied.status === "approval_required") {
           return {
             exitCode: ExitCodes.APPROVAL_REQUIRED,
             status: "approval_required",
@@ -372,11 +400,25 @@ export const COMMANDS: Record<string, CommandDefinition> = {
           };
         }
 
+        if (applied.status === "failed") {
+          return {
+            exitCode: ExitCodes.GENERAL_FAILURE,
+            status: "failed",
+            errors: [
+              {
+                code: ErrorCodes.OPERATION_FAILED,
+                message: applied.error ?? "Plan apply failed.",
+              },
+            ],
+          };
+        }
+
         return {
           exitCode: ExitCodes.SUCCESS,
           status: "completed",
           data: {
             applied: true,
+            ...(applied.result !== undefined ? { result: applied.result } : {}),
           },
         };
       }
@@ -398,7 +440,7 @@ export const COMMANDS: Record<string, CommandDefinition> = {
     name: "state",
     subcommands: ["list", "show", "restore"],
     mutates: false,
-    run(ctx) {
+    async run(ctx) {
       const sub = ctx.args.subcommand;
       if (!sub) {
         return {

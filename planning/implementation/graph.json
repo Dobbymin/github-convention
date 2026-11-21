@@ -188,7 +188,7 @@
       "contract_file": "nodes/n12-issue-approvals-idempotent-creation-and-dependency-links.json",
       "priority": "P1",
       "hard_dependencies": ["N04", "N11"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": false
     },
     {
