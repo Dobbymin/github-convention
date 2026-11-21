@@ -1,4 +1,5 @@
 export * from "./analysis/index.js";
+export * from "./approval/index.js";
 export * from "./cache/index.js";
 export * from "./compatibility.js";
 export * from "./config/index.js";
