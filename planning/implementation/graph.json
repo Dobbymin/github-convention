@@ -204,7 +204,7 @@
       "contract_file": "nodes/n14-dependency-scheduler-and-isolated-workspace-lifecycle.json",
       "priority": "P1",
       "hard_dependencies": ["N05", "N13"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": false
     },
     {
