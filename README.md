@@ -287,16 +287,13 @@ npx @dobbymin/github-convention-cli validate --project .
 
 ## 9. 문서 및 스키마 안내
 
-- [시스템 명세 (`SPEC.md`)](SPEC.md) — 아키텍처, 워크플로, 안전 장치, 상태 관리, 기본 구현 정책
 - [스킬 패키지 원본 (`skills/github-convention/SKILL.md`)](skills/github-convention/SKILL.md) — 에이전트에 설치되는 `SKILL.md` 및 `references/`
-- [의사결정 기록 (`docs/decision-register.md`)](docs/decision-register.md) — 합의된 설계 및 운영 정책 모음
 - [CLI 계약 (`docs/cli-contract.md`)](docs/cli-contract.md) — 명령어, 플래그, JSON 출력 봉투(envelope), 종료 코드, 승인 동작
 - [에이전트 어댑터 (`docs/agent-adapters.md`)](docs/agent-adapters.md) — 에이전트 감지 기준, 기능 모델, 스킬 경로
 - [배포 및 릴리스 아키텍처 (`docs/distribution.md`)](docs/distribution.md) — npm 패키지 및 독립 실행 아티팩트 배포 구조
 - [저장소 이슈 및 PR 템플릿 (`.github/ISSUE_TEMPLATE/`)](.github/ISSUE_TEMPLATE/01-parent-issue.md) — GitHub UI 이슈 템플릿 및 [`.github/pull_request_template.md`](.github/pull_request_template.md)
 - [재사용 가능한 이슈 구조 (`docs/issue-templates.md`)](docs/issue-templates.md) — 대상 저장소용 부모/하위/후속 이슈 기본 형식
 - [재사용 가능한 PR 본문 템플릿 (`templates/PULL_REQUEST_TEMPLATE.md`)](templates/PULL_REQUEST_TEMPLATE.md)
-- [구현 로드맵 (`ROADMAP.md`)](ROADMAP.md) — 에픽 및 구현 단계 기록
 - [설정 예시 (`examples/config.yaml`)](examples/config.yaml) 및 [실행 상태 예시 (`examples/state.json`)](examples/state.json)
 - [설정 스키마 (`schemas/config.schema.json`)](schemas/config.schema.json) 및 [상태 스키마 (`schemas/state.schema.json`)](schemas/state.schema.json)
 
