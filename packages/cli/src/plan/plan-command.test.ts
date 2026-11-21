@@ -3,8 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import type { IssuePlan } from "@github-convention/core";
-import { GitHubReadAdapter } from "@github-convention/github-adapter";
+import type { IssuePlan } from "@dobbymin/github-convention-core";
+import { GitHubReadAdapter } from "@dobbymin/github-convention-github-adapter";
 import { runPlanApply, runPlanValidate } from "./index.js";
 
 const VALID_PLAN: IssuePlan = {

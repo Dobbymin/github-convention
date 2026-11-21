@@ -8,7 +8,7 @@ import {
   formatIdempotencyMarker,
   rejectItem,
   type IssuePlan,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import type { GhCommandRunner } from "../auth/types.js";
 import { GitHubReadAdapter } from "../read/read-adapter.js";
 import { applyApprovedIssues } from "./idempotent-issues.js";

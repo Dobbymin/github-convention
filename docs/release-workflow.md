@@ -2,7 +2,7 @@
 
 ## 1. Release Policy Precedence
 
-When proposing a release with `proposeRelease` in `@github-convention/core`, existing repository release policy takes precedence over commit-derived versioning:
+When proposing a release with `proposeRelease` in `@dobbymin/github-convention-core`, existing repository release policy takes precedence over commit-derived versioning:
 
 1. **Existing policy version (`existingPolicyVersion`)**: If configured, `proposedVersion` uses the policy-specified version (stripping an optional leading `v`) and sets `versionSource` to `"existing_policy"`.
 2. **Existing tag format (`existingPolicyTagFormat`)**: Formats `tagName` using `{version}` substitution (for example, `release-{version}`) or prefix concatenation, defaulting to `v{version}` when omitted.
@@ -25,7 +25,7 @@ When deriving the next version from Conventional Commits:
 
 ## 3. Explicit Approval Gate Before Tag and Release Creation
 
-Tag creation and GitHub Release publication are strictly gated by `executeGatedRelease` in `@github-convention/github-adapter`:
+Tag creation and GitHub Release publication are strictly gated by `executeGatedRelease` in `@dobbymin/github-convention-github-adapter`:
 
 - **Explicit approval required**: `explicitApproval: true` is mandatory before any `git tag`, `git push`, or `gh release create` command is invoked.
 - **Non-interactive safety (`--non-interactive`)**: Running with `nonInteractive: true` and without `explicitApproval: true` returns `status: "approval_required"`, `executed: false`, and performs zero local git or remote GitHub mutations.

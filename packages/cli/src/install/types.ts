@@ -1,5 +1,5 @@
-import type { AgentId } from "@github-convention/agent-adapters";
-import type { InstallType, SkillScope } from "@github-convention/core";
+import type { AgentId } from "@dobbymin/github-convention-agent-adapters";
+import type { InstallType, SkillScope } from "@dobbymin/github-convention-core";
 
 export type InstallScopeSelection = "project" | "global" | "both";
 

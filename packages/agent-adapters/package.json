@@ -1,7 +1,6 @@
 {
-  "name": "@github-convention/agent-adapters",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@dobbymin/github-convention-agent-adapters",
+  "version": "0.1.1",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -16,6 +15,9 @@
     "dist"
   ],
   "dependencies": {
-    "@github-convention/core": "0.1.0"
+    "@dobbymin/github-convention-core": "0.1.1"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

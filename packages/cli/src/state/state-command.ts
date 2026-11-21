@@ -7,7 +7,7 @@ import {
   type ArchiveMoveResult,
   type CleanupArchiveResult,
   type StateShowResult,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 
 export type StateCommandOptions = Readonly<{
   projectRoot?: string;

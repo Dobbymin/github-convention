@@ -1,7 +1,6 @@
 {
-  "name": "@github-convention/skill",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@dobbymin/github-convention-skill",
+  "version": "0.1.1",
   "license": "MIT",
   "engines": {
     "node": ">=22"
@@ -12,9 +11,13 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "package.json"
+    "package.json",
+    "skill"
   ],
   "githubConvention": {
     "compatibleCli": "^0.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

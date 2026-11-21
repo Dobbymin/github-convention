@@ -4,7 +4,7 @@ import {
   listArchives,
   StateManager,
   type RunStatus,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 
 export interface ActiveRunSummary {
   runId: string;

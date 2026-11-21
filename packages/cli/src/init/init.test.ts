@@ -4,7 +4,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import test from "node:test";
-import { ExitCodes } from "@github-convention/core";
+import { ExitCodes } from "@dobbymin/github-convention-core";
 import { assertSafeIgnoreEntry, planGitignoreUpdates } from "../ignore/index.js";
 import { runCli } from "../runner.js";
 import { executeInit } from "./initializer.js";

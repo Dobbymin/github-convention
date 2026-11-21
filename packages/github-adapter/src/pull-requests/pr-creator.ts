@@ -2,7 +2,7 @@ import {
   evaluateQualityGates,
   redactSecrets,
   type QualityGateInputs,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import type { GhCommandRunner } from "../auth/types.js";
 import type { GitHubReadAdapter } from "../read/read-adapter.js";
 

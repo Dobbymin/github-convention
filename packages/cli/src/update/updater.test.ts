@@ -9,7 +9,7 @@ import {
   saveManifest,
   verifyManifestIntegrity,
   type InstallManifest,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import { executeUninstall } from "../uninstall/index.js";
 import { executeUpdate, planUpdate } from "./index.js";
 

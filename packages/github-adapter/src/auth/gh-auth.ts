@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { redactSecrets } from "@github-convention/core";
+import { redactSecrets } from "@dobbymin/github-convention-core";
 import type { CheckGhAuthOptions, GhAuthStatus, GhCommandRunner } from "./types.js";
 
 export const defaultGhCommandRunner: GhCommandRunner = (

@@ -2,13 +2,13 @@ import * as childProcess from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { getAllAdapters } from "@github-convention/agent-adapters";
+import { getAllAdapters } from "@dobbymin/github-convention-agent-adapters";
 import {
   loadConfigFile,
   loadManifest,
   validateConfig,
   verifyManifestIntegrity,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import type {
   AgentDiagnosticSummary,
   ConfigDiagnostics,

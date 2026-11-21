@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { runCli } from "./runner.js";
-import { ExitCodes, ErrorCodes } from "@github-convention/core";
+import { ExitCodes, ErrorCodes } from "@dobbymin/github-convention-core";
 
 test("all documented command families parse and return stable envelopes", async () => {
   const commands = [

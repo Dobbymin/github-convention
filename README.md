@@ -42,7 +42,10 @@ It is designed around one principle:
 ## CLI Quickstart
 
 ```bash
-# Build workspace packages
+# Run directly from npm (after publish)
+npx @dobbymin/github-convention-cli --version
+
+# Or build workspace packages locally
 npm run build
 
 # Diagnose runtime, Git, gh auth, and detected agents

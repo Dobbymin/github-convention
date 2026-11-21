@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import { computeDirectoryManifest } from "@github-convention/core";
+import { computeDirectoryManifest } from "@dobbymin/github-convention-core";
 import {
   computeAggregateCanonicalSha256,
   getMarketplaceAdapter,

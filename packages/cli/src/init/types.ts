@@ -1,4 +1,4 @@
-import type { RepositoryAnalysis } from "@github-convention/core";
+import type { RepositoryAnalysis } from "@dobbymin/github-convention-core";
 import type { IgnorePlan } from "../ignore/index.js";
 
 export interface InitOptions {

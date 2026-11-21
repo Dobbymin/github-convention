@@ -18,18 +18,18 @@ import {
 test("package metadata: all workspace packages define required release fields", () => {
   const packages = validatePackageMetadata(REPO_ROOT);
   assert.deepEqual(Object.keys(packages).sort(), [
-    "@github-convention/agent-adapters",
-    "@github-convention/cli",
-    "@github-convention/core",
-    "@github-convention/github-adapter",
-    "@github-convention/skill",
+    "@dobbymin/github-convention-agent-adapters",
+    "@dobbymin/github-convention-cli",
+    "@dobbymin/github-convention-core",
+    "@dobbymin/github-convention-github-adapter",
+    "@dobbymin/github-convention-skill",
   ]);
   assert.equal(
-    packages["@github-convention/cli"].manifest.githubConvention.supportedSkill,
+    packages["@dobbymin/github-convention-cli"].manifest.githubConvention.supportedSkill,
     "^0.1.0",
   );
   assert.equal(
-    packages["@github-convention/skill"].manifest.githubConvention.compatibleCli,
+    packages["@dobbymin/github-convention-skill"].manifest.githubConvention.compatibleCli,
     "^0.1.0",
   );
 });
@@ -78,7 +78,7 @@ test("forbidden pack files: rejects .harness, _workspace, .env, and secret files
 });
 
 test("workspace pack dry-run: includes only whitelisted files and zero unexpected files", () => {
-  const cliPack = runWorkspacePackDryRun("@github-convention/cli", REPO_ROOT);
+  const cliPack = runWorkspacePackDryRun("@dobbymin/github-convention-cli", REPO_ROOT);
   assert.ok(cliPack.files.includes("package.json"));
   assert.ok(cliPack.files.some((file) => file.startsWith("dist/")));
   assert.equal(
@@ -86,8 +86,10 @@ test("workspace pack dry-run: includes only whitelisted files and zero unexpecte
     false,
   );
 
-  const skillPack = runWorkspacePackDryRun("@github-convention/skill", REPO_ROOT);
-  assert.deepEqual(skillPack.files, ["package.json"]);
+  const skillPack = runWorkspacePackDryRun("@dobbymin/github-convention-skill", REPO_ROOT);
+  assert.ok(skillPack.files.includes("package.json"));
+  assert.ok(skillPack.files.includes("skill/SKILL.md"));
+  assert.ok(skillPack.files.some((file) => file.startsWith("skill/references/")));
 });
 
 test("build-artifacts.mjs --dry-run: exits 0 with valid JSON and only CI-verified targets", () => {

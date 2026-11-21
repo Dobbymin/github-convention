@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
-import { isCompatibleVersion } from "@github-convention/core";
+import { isCompatibleVersion } from "@dobbymin/github-convention-core";
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -251,8 +251,8 @@ export const sha256Hex = (bufferOrPath) => {
 
 export const buildReleaseManifest = (repoRoot = REPO_ROOT) => {
   const packages = validatePackageMetadata(repoRoot);
-  const cliPkg = packages["@github-convention/cli"].manifest;
-  const skillPkg = packages["@github-convention/skill"].manifest;
+  const cliPkg = packages["@dobbymin/github-convention-cli"].manifest;
+  const skillPkg = packages["@dobbymin/github-convention-skill"].manifest;
   const compatibility = checkBidirectionalCompatibility(cliPkg, skillPkg);
 
   const packResults = Object.keys(packages).map((pkgName) =>

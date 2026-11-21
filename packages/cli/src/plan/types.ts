@@ -1,5 +1,12 @@
-import type { IssuePlan, PlanApprovalRecord, PlanValidationResult } from "@github-convention/core";
-import type { ApplyIssuesResult, GitHubReadAdapter } from "@github-convention/github-adapter";
+import type {
+  IssuePlan,
+  PlanApprovalRecord,
+  PlanValidationResult,
+} from "@dobbymin/github-convention-core";
+import type {
+  ApplyIssuesResult,
+  GitHubReadAdapter,
+} from "@dobbymin/github-convention-github-adapter";
 
 export type PlanValidateOptions = Readonly<{
   projectRoot?: string;

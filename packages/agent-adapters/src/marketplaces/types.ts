@@ -1,4 +1,4 @@
-import type { FileHashRecord } from "@github-convention/core";
+import type { FileHashRecord } from "@dobbymin/github-convention-core";
 
 export type MarketplaceFormatId = "claude-plugin" | "agents-skill-bundle";
 

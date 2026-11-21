@@ -4,17 +4,17 @@
 
 `github-convention` distributes through two primary channels:
 
-1. **npm packages**: Workspace packages under `packages/*` (`@github-convention/cli`, `@github-convention/skill`, `@github-convention/core`, `@github-convention/agent-adapters`, `@github-convention/github-adapter`). Every package declares `"files"` whitelists, `"engines": { "node": ">=22" }`, `"exports"`, `"repository"`, and `"homepage"`. Internal/unreleased packages keep `"private": true` until an approved release prepares them for publishing.
+1. **npm packages**: Workspace packages under `packages/*` (`@dobbymin/github-convention-cli`, `@dobbymin/github-convention-skill`, `@dobbymin/github-convention-core`, `@dobbymin/github-convention-agent-adapters`, `@dobbymin/github-convention-github-adapter`). Every package declares `"files"` whitelists, `"engines": { "node": ">=22" }`, `"exports"`, `"repository"`, and `"homepage"`. Internal/unreleased packages keep `"private": true` until an approved release prepares them for publishing.
 2. **Standalone GitHub Release artifacts**: Platform archives, OS-specific launchers, `targets.json`, and `SHA256SUMS.txt` staged by `scripts/release/build-artifacts.mjs --out <dir>`.
 
 ## 2. Independent CLI and Skill SemVer compatibility
 
-CLI (`@github-convention/cli`) and Skill (`@github-convention/skill`) evolve on independent SemVer schedules and declare compatibility in both directions:
+CLI (`@dobbymin/github-convention-cli`) and Skill (`@dobbymin/github-convention-skill`) evolve on independent SemVer schedules and declare compatibility in both directions:
 
 - `packages/cli/package.json` defines `githubConvention.supportedSkill` (for example, `"^0.1.0"`).
 - `packages/skill/package.json` defines `githubConvention.compatibleCli` (for example, `"^0.1.0"`).
 
-`scripts/release/build-artifacts.mjs` validates both directions using `isCompatibleVersion` from `@github-convention/core` before packaging:
+`scripts/release/build-artifacts.mjs` validates both directions using `isCompatibleVersion` from `@dobbymin/github-convention-core` before packaging:
 
 - `isCompatibleVersion(cli.version, skill.githubConvention.compatibleCli)`
 - `isCompatibleVersion(skill.version, cli.githubConvention.supportedSkill)`
