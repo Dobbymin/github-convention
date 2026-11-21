@@ -35,6 +35,6 @@
   "undo_classification": "Revert adapter code/docs introduced by this node only.",
   "approval_requirements": ["GitHub Issue approval before implementation"],
   "retry_policy": "Initial attempt plus at most 2 retries; repeated identical failure escalates.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N01 and approved Issue required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }

@@ -132,7 +132,7 @@
       "contract_file": "nodes/n05-agent-adapter-discovery-and-capabilities.json",
       "priority": "P0",
       "hard_dependencies": ["N01"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": true
     },
     {
