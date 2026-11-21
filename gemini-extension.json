@@ -1,0 +1,5 @@
+{
+  "name": "github-convention",
+  "version": "0.1.1",
+  "description": "Apply a consistent, safe, Issue-driven GitHub development workflow without forking repository conventions."
+}

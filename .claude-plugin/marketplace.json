@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "github-convention",
+  "owner": {
+    "name": "Dobbymin",
+    "url": "https://github.com/Dobbymin"
+  },
+  "metadata": {
+    "description": "Issue-driven GitHub development workflow skill and CLI.",
+    "version": "0.1.1"
+  },
+  "plugins": [
+    {
+      "name": "github-convention",
+      "source": "./",
+      "description": "Apply a consistent, safe, Issue-driven GitHub development workflow without forking repository conventions.",
+      "version": "0.1.1",
+      "category": "productivity",
+      "tags": ["github", "git", "workflow", "convention", "issues", "pr"]
+    }
+  ]
+}

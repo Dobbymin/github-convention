@@ -41,3 +41,10 @@ Each `MarketplacePackagingAdapter` supports:
 ## 5. Approval gate before publication
 
 Marketplace adapters **only** stage local artifacts and never publish to any external registry or marketplace. Any marketplace submission or publication requires explicit user approval before execution.
+
+## 6. Repository root manifests vs. local staging adapters
+
+This repository also ships root marketplace manifests (`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `.codex-plugin/plugin.json`, `gemini-extension.json`, `plugin.json`) so supported platforms can install `skills/github-convention/` directly from GitHub without running the CLI first.
+
+- **Root marketplace manifests**: Distribute this repository's authoring Skill (`skills/github-convention/`) directly. Their versions and paths are verified against `packages/skill/package.json` by `npm run verify:manifests`.
+- **Local staging adapters (`@dobbymin/github-convention-agent-adapters`)**: Stage a target project's installed `.agents/skills/github-convention/` into an explicit `outDir` as described in Sections 1–5 above.
