@@ -58,6 +58,6 @@
     "프로젝트 정책상 승인이 필요한 외부 CI 또는 도구 추가/교체 전 승인"
   ],
   "retry_policy": "최초 실행 후 최대 2회 재시도한다. 동일한 실패가 반복되면 조기에 중단한다.",
-  "current_status": "blocked",
-  "blocking_reasons": ["승인된 구현 이슈가 아직 없다."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }
