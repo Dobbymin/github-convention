@@ -1,4 +1,5 @@
-export type AgentId = "codex" | "claude-code" | "gemini-cli" | "antigravity" | "opencode" | "kilo";
+export type AgentId =
+  "codex" | "claude-code" | "gemini-cli" | "antigravity" | "opencode" | "kilo" | "copilot";
 
 export type DetectionConfidence = "confirmed" | "probable" | "unknown" | "not_found";
 
