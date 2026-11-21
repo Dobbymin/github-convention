@@ -99,6 +99,18 @@ const ADAPTER_CONFIGS: AdapterConfig[] = [
     globalAlternateSkillDirs: [".kilo/skills"],
     capabilities: { ...DEFAULT_CAPABILITIES },
   },
+  {
+    id: "copilot",
+    name: "GitHub Copilot CLI",
+    executables: ["copilot"],
+    homeConfigDirs: [".copilot"],
+    projectConfigDirs: [".github"],
+    projectSkillDir: ".github/skills",
+    globalSkillDir: ".copilot/skills",
+    projectAlternateSkillDirs: [".agents/skills"],
+    globalAlternateSkillDirs: [".agents/skills"],
+    capabilities: { ...DEFAULT_CAPABILITIES },
+  },
 ];
 
 class BaseAgentAdapter implements AgentAdapter {

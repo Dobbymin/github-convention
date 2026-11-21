@@ -20,7 +20,7 @@ test("runList reports zero installed agents on empty project", () => {
 
   const result = runList({ projectRoot: projectDir, homeDir: fakeHome });
   assert.equal(result.project, projectDir);
-  assert.equal(result.agents.length, 6);
+  assert.equal(result.agents.length, 7);
   assert.equal(result.installedCount, 0);
 });
 

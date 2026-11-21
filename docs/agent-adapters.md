@@ -14,6 +14,7 @@ The Skill uses an open `SKILL.md` package format. The adapter layer is responsib
 | `antigravity` | Google Antigravity   | `.agents/skills/<name>/`                               | `~/.gemini/config/skills/<name>/`                                 | `agy`/Antigravity application metadata and known config |
 | `opencode`    | OpenCode             | `.agents/skills/<name>/` or `.opencode/skills/<name>/` | `~/.agents/skills/<name>/` or `~/.config/opencode/skills/<name>/` | `opencode` executable and OpenCode config               |
 | `kilo`        | Kilo Code / Kilo CLI | `.agents/skills/<name>/` or `.kilo/skills/<name>/`     | `~/.agents/skills/<name>/` or `~/.kilo/skills/<name>/`            | `kilo` executable and Kilo config                       |
+| `copilot`     | GitHub Copilot CLI   | `.github/skills/<name>/` or `.agents/skills/<name>/`   | `~/.copilot/skills/<name>/`                                       | `copilot` executable and `~/.copilot` config            |
 
 Paths are discovery locations from current official documentation at the date of this specification. Do not hard-code the table as unquestionable truth: adapters must probe the path/version and expose the selected target in `doctor` and install previews.
 

@@ -10,12 +10,20 @@ import {
   type ProbeEnvironment,
 } from "./index.js";
 
-test("adapters registry: provides all 6 documented agent adapters", () => {
+test("adapters registry: provides all 7 documented agent adapters", () => {
   const adapters = getAllAdapters();
-  assert.equal(adapters.length, 6);
+  assert.equal(adapters.length, 7);
 
   const ids = adapters.map((a) => a.id).sort();
-  assert.deepEqual(ids, ["antigravity", "claude-code", "codex", "gemini-cli", "kilo", "opencode"]);
+  assert.deepEqual(ids, [
+    "antigravity",
+    "claude-code",
+    "codex",
+    "copilot",
+    "gemini-cli",
+    "kilo",
+    "opencode",
+  ]);
 
   for (const id of ids) {
     const adapter = getAdapter(id);
@@ -116,7 +124,7 @@ test("detectAllAgents: produces doctor-ready capability report for all adapters"
   };
 
   const reports = detectAllAgents(env);
-  assert.equal(reports.length, 6);
+  assert.equal(reports.length, 7);
 
   const agyReport = reports.find((r) => r.agentId === "antigravity");
   assert.ok(agyReport);
@@ -125,4 +133,16 @@ test("detectAllAgents: produces doctor-ready capability report for all adapters"
   const codexReport = reports.find((r) => r.agentId === "codex");
   assert.ok(codexReport);
   assert.equal(codexReport.confidence, "probable");
+
+  const copilotEnv: ProbeEnvironment = {
+    homeDir: "/mock/home",
+    projectDir: "/mock/project",
+    commandExists: (cmd) => (cmd === "copilot" ? "/opt/homebrew/bin/copilot" : null),
+    dirExists: (p) => p.includes(".copilot"),
+    fileExists: () => false,
+  };
+  const copilotReport = getAdapter("copilot").detect(copilotEnv);
+  assert.equal(copilotReport.confidence, "confirmed");
+  assert.equal(copilotReport.paths.projectSkillDir, path.join("/mock/project", ".github/skills"));
+  assert.equal(copilotReport.paths.globalSkillDir, path.join("/mock/home", ".copilot/skills"));
 });
