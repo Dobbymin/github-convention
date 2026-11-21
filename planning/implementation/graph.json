@@ -212,7 +212,7 @@
       "contract_file": "nodes/n15-worker-contract-result-verification-and-bounded-retries.json",
       "priority": "P1",
       "hard_dependencies": ["N14"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": false
     },
     {
