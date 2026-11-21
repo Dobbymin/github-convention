@@ -2,22 +2,29 @@ import * as fs from "node:fs";
 import { createRequire } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as readline from "node:readline/promises";
 import { fileURLToPath } from "node:url";
-import { getAdapter } from "@dobbymin/github-convention-agent-adapters";
+import { getAdapter, type AgentId } from "@dobbymin/github-convention-agent-adapters";
 import {
   computeDirectoryManifest,
   type InstallManifest,
   saveManifest,
   type SkillScope,
 } from "@dobbymin/github-convention-core";
-import type { InstallExecutionItem, InstallPlanOptions, InstallResult } from "./types.js";
+import type {
+  InstallExecutionItem,
+  InstallPlanOptions,
+  InstallPrompter,
+  InstallResult,
+  InstallScopeSelection,
+} from "./types.js";
 
 const SKILL_NAME = "github-convention";
 const DEFAULT_SKILL_VERSION = "0.1.1";
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_REPO_ROOT = path.resolve(MODULE_DIR, "../../../..");
 const require = createRequire(import.meta.url);
-const FALLBACK_SKILL_MD = `---
+export const FALLBACK_SKILL_MD = `---
 name: ${SKILL_NAME}
 description: Deterministic GitHub workflow automation skill.
 ---
@@ -259,3 +266,71 @@ export const executeInstall = (options: InstallPlanOptions): InstallResult => {
     success,
   };
 };
+
+export const createReadlineInstallPrompter = (): InstallPrompter => ({
+  async selectTargets({ candidates, defaultScope }) {
+    const selectable = candidates.filter(
+      (det) => det.confidence === "confirmed" || det.confidence === "probable",
+    );
+    const pool = selectable.length > 0 ? selectable : candidates;
+    const confirmedIds = candidates
+      .filter((det) => det.confidence === "confirmed")
+      .map((det) => det.agentId);
+
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stderr,
+    });
+
+    try {
+      process.stderr.write("\nDetected agents:\n");
+      pool.forEach((det, idx) => {
+        process.stderr.write(`  ${idx + 1}. ${det.agentId} (${det.name}) [${det.confidence}]\n`);
+      });
+
+      const defaultHint = confirmedIds.length > 0 ? ` [${confirmedIds.join(",")}]` : "";
+      const agentAnswer = (
+        await rl.question(`Select agent IDs (comma-separated or numbers)${defaultHint}: `)
+      ).trim();
+
+      let selectedIds: AgentId[];
+      if (!agentAnswer) {
+        selectedIds = confirmedIds;
+      } else {
+        const validMap = new Map(candidates.map((c) => [c.agentId, c.agentId]));
+        selectedIds = [];
+        for (const token of agentAnswer.split(",")) {
+          const trimmed = token.trim();
+          if (!trimmed) continue;
+          const num = Number.parseInt(trimmed, 10);
+          if (!Number.isNaN(num) && num >= 1 && num <= pool.length) {
+            const byIndex = pool[num - 1];
+            if (byIndex) selectedIds.push(byIndex.agentId);
+          } else if (validMap.has(trimmed as AgentId)) {
+            selectedIds.push(trimmed as AgentId);
+          }
+        }
+      }
+
+      const uniqueIds = [...new Set(selectedIds)];
+      if (uniqueIds.length === 0) {
+        return null;
+      }
+
+      const scopeAnswer = (
+        await rl.question(`Select scope (project|global|both) [${defaultScope}]: `)
+      )
+        .trim()
+        .toLowerCase();
+
+      const chosenScope: InstallScopeSelection =
+        scopeAnswer === "project" || scopeAnswer === "global" || scopeAnswer === "both"
+          ? scopeAnswer
+          : defaultScope;
+
+      return uniqueIds.map((agentId) => ({ agentId, scope: chosenScope }));
+    } finally {
+      rl.close();
+    }
+  },
+});

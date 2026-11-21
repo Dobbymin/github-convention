@@ -1,13 +1,23 @@
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
+import { getAdapter, getAllAdapters } from "@dobbymin/github-convention-agent-adapters";
 import {
   computeDirectoryManifest,
   loadManifest,
   MANIFEST_FILENAME,
   type InstallManifest,
+  type SkillScope,
 } from "@dobbymin/github-convention-core";
+import { validateAgentIds } from "../list/index.js";
 import { hashRegularFile, lstatOrNull, resolveInside } from "../update/fs-utils.js";
-import type { UninstallItem, UninstallOptions, UninstallPlan, UninstallResult } from "./types.js";
+import type {
+  MultiUninstallResult,
+  UninstallItem,
+  UninstallOptions,
+  UninstallPlan,
+  UninstallResult,
+} from "./types.js";
 
 const DEFAULT_SKILL_NAME = "github-convention";
 
@@ -283,4 +293,111 @@ export function executeUninstall(options: UninstallOptions = {}): UninstallResul
       error: `Uninstall failed: ${describeError(err)}`,
     };
   }
+}
+
+const deduplicateAndOrderTargets = (paths: readonly string[], canonicalPath: string): string[] => {
+  const seen = new Set<string>();
+  const nonCanonical: string[] = [];
+  const canonical: string[] = [];
+  const resolvedCanonical = path.resolve(canonicalPath);
+
+  for (const candidate of paths) {
+    const resolved = path.resolve(candidate);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+
+    if (resolved === resolvedCanonical) {
+      canonical.push(candidate);
+    } else {
+      nonCanonical.push(candidate);
+    }
+  }
+
+  // Unlink/remove adapter targets (including project symlinks) before removing canonical source.
+  return [...nonCanonical, ...canonical];
+};
+
+export function resolveUninstallTargets(options: UninstallOptions = {}): string[] {
+  const projectRoot = options.projectRoot ?? process.cwd();
+  const homeDir = options.homeDir ?? os.homedir();
+  const scope = options.scope ?? "project";
+  const scopes: SkillScope[] = scope === "both" ? ["project", "global"] : [scope];
+  const canonicalPath = path.join(projectRoot, ".agents", "skills", DEFAULT_SKILL_NAME);
+
+  if (options.targetDir && (!options.agents || options.agents.length === 0)) {
+    return deduplicateAndOrderTargets([options.targetDir], canonicalPath);
+  }
+
+  if (options.agents && options.agents.length > 0) {
+    const agentIds = validateAgentIds(options.agents);
+    const resolved: string[] = [];
+    for (const agentId of agentIds) {
+      const adapter = getAdapter(agentId);
+      for (const s of scopes) {
+        const targetPath =
+          s === "project"
+            ? path.join(projectRoot, adapter.paths.projectSkillDir, DEFAULT_SKILL_NAME)
+            : path.join(homeDir, adapter.paths.globalSkillDir, DEFAULT_SKILL_NAME);
+        resolved.push(targetPath);
+      }
+    }
+    return deduplicateAndOrderTargets(resolved, canonicalPath);
+  }
+
+  const discovered: string[] = [];
+  for (const adapter of getAllAdapters()) {
+    for (const s of scopes) {
+      const candidatePath =
+        s === "project"
+          ? path.join(projectRoot, adapter.paths.projectSkillDir, DEFAULT_SKILL_NAME)
+          : path.join(homeDir, adapter.paths.globalSkillDir, DEFAULT_SKILL_NAME);
+      if (lstatOrNull(candidatePath) !== null) {
+        discovered.push(candidatePath);
+      }
+    }
+  }
+
+  if (scopes.includes("project") && lstatOrNull(canonicalPath) !== null) {
+    discovered.push(canonicalPath);
+  }
+
+  const ordered = deduplicateAndOrderTargets(discovered, canonicalPath);
+  return ordered.length > 0 ? ordered : [canonicalPath];
+}
+
+export function executeMultiUninstall(options: UninstallOptions = {}): MultiUninstallResult {
+  const targetDirs = resolveUninstallTargets(options);
+  const targets = targetDirs.map((targetDir) => executeUninstall({ ...options, targetDir }));
+
+  const summary: UninstallPlan["summary"] = {
+    remove: 0,
+    preserve: 0,
+    missing: 0,
+    unowned: 0,
+  };
+
+  for (const res of targets) {
+    summary.remove += res.plan.summary.remove;
+    summary.preserve += res.plan.summary.preserve;
+    summary.missing += res.plan.summary.missing;
+    summary.unowned += res.plan.summary.unowned;
+  }
+
+  const items = targets.flatMap((res) => res.plan.items);
+  const warnings = items
+    .filter((item) => item.action === "preserve_modified" || item.action === "preserve_unowned")
+    .map((item) => `[${item.action}] ${item.relativePath}: ${item.reason}`);
+
+  const success = targets.every((res) => res.success);
+  const firstError = targets.find((res) => !res.success && res.error)?.error;
+
+  return {
+    success,
+    dryRun: options.dryRun ?? false,
+    targets,
+    items,
+    summary,
+    warnings,
+    ...(firstError !== undefined ? { error: firstError } : {}),
+  };
 }

@@ -4,12 +4,20 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import {
+  ExitCodes,
   computeDirectoryManifest,
   loadManifest,
   saveManifest,
   type InstallManifest,
 } from "@dobbymin/github-convention-core";
-import { executeUninstall, planUninstall } from "./index.js";
+import { executeInstall } from "../install/index.js";
+import { runCli } from "../runner.js";
+import {
+  executeMultiUninstall,
+  executeUninstall,
+  planUninstall,
+  resolveUninstallTargets,
+} from "./index.js";
 
 const SKILL = `---\nname: github-convention\ndescription: Test skill\n---\n\n# Skill\n`;
 
@@ -143,4 +151,99 @@ test("uninstall: no-op for a directory without an install manifest", () => {
   assert.equal(loadManifest(targetDir), null);
 
   fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("executeMultiUninstall: orders symlinks before canonical, supports dry-run and both scopes, and preserves modified files", (t) => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ghc-multi-uninst-proj-"));
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "ghc-multi-uninst-home-"));
+  const sourceDir = path.join(projectRoot, "skills", "github-convention");
+  t.after(() => {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  });
+
+  fs.mkdirSync(sourceDir, { recursive: true });
+  fs.writeFileSync(path.join(sourceDir, "SKILL.md"), SKILL, "utf-8");
+  fs.writeFileSync(path.join(sourceDir, "notes.md"), "original\n", "utf-8");
+
+  const installRes = executeInstall({
+    targets: [
+      { agentId: "codex", scope: "both" },
+      { agentId: "claude-code", scope: "both" },
+    ],
+    projectRoot,
+    homeDir,
+    sourceSkillDir: sourceDir,
+  });
+  assert.equal(installRes.success, true);
+
+  const canonicalPath = path.join(projectRoot, ".agents", "skills", "github-convention");
+  const claudeProjectPath = path.join(projectRoot, ".claude", "skills", "github-convention");
+  const claudeGlobalPath = path.join(homeDir, ".claude", "skills", "github-convention");
+
+  // Modify a file in global claude-code so it is preserved
+  fs.writeFileSync(path.join(claudeGlobalPath, "notes.md"), "user edited\n", "utf-8");
+
+  const ordered = resolveUninstallTargets({ projectRoot, homeDir, scope: "both" }).map((p) =>
+    path.resolve(p),
+  );
+  const canonicalIdx = ordered.indexOf(path.resolve(canonicalPath));
+  const claudeProjectIdx = ordered.indexOf(path.resolve(claudeProjectPath));
+  assert.ok(canonicalIdx !== -1);
+  assert.ok(claudeProjectIdx !== -1);
+  assert.ok(claudeProjectIdx < canonicalIdx);
+
+  const dryRes = executeMultiUninstall({
+    projectRoot,
+    homeDir,
+    scope: "both",
+    dryRun: true,
+  });
+  assert.equal(dryRes.success, true);
+  assert.equal(dryRes.dryRun, true);
+  assert.equal(fs.existsSync(canonicalPath), true);
+
+  const realRes = executeMultiUninstall({
+    projectRoot,
+    homeDir,
+    scope: "both",
+  });
+  assert.equal(realRes.success, true);
+  assert.equal(fs.existsSync(canonicalPath), false);
+  assert.equal(fs.existsSync(claudeProjectPath), false);
+  assert.equal(fs.readFileSync(path.join(claudeGlobalPath, "notes.md"), "utf-8"), "user edited\n");
+});
+
+test("CLI uninstall: supports --agent and --scope and rejects unknown --agent", async (t) => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ghc-cli-uninst-"));
+  t.after(() => fs.rmSync(projectRoot, { recursive: true, force: true }));
+
+  const invalidRes = await runCli(
+    ["uninstall", "--agent", "bad-agent", "--project", projectRoot, "--output", "json"],
+    { stdout: () => {}, stderr: () => {} },
+  );
+  assert.equal(invalidRes.exitCode, ExitCodes.INVALID_ARGUMENTS);
+
+  const dryRes = await runCli(
+    [
+      "uninstall",
+      "--agent",
+      "codex",
+      "--scope",
+      "project",
+      "--project",
+      projectRoot,
+      "--dry-run",
+      "--output",
+      "json",
+    ],
+    { stdout: () => {}, stderr: () => {} },
+  );
+  assert.equal(dryRes.exitCode, ExitCodes.SUCCESS);
+  const data = dryRes.envelope.data as { targetDir: string; targets: unknown[] };
+  assert.equal(
+    path.resolve(data.targetDir),
+    path.resolve(path.join(projectRoot, ".agents", "skills", "github-convention")),
+  );
+  assert.equal(data.targets.length, 1);
 });

@@ -1,4 +1,4 @@
-import type { AgentId } from "@dobbymin/github-convention-agent-adapters";
+import type { AgentDetectionResult, AgentId } from "@dobbymin/github-convention-agent-adapters";
 import type { InstallType, SkillScope } from "@dobbymin/github-convention-core";
 
 export type InstallScopeSelection = "project" | "global" | "both";
@@ -6,6 +6,15 @@ export type InstallScopeSelection = "project" | "global" | "both";
 export interface InstallTargetRequest {
   agentId: AgentId;
   scope: InstallScopeSelection;
+}
+
+export interface InstallPromptContext {
+  candidates: AgentDetectionResult[];
+  defaultScope: InstallScopeSelection;
+}
+
+export interface InstallPrompter {
+  selectTargets(context: InstallPromptContext): Promise<InstallTargetRequest[] | null>;
 }
 
 export interface InstallPlanOptions {

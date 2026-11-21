@@ -2,18 +2,24 @@ import { detectAllAgents } from "@dobbymin/github-convention-agent-adapters";
 import { ExitCodes, ErrorCodes, type OutputError } from "@dobbymin/github-convention-core";
 import { runDoctor } from "./doctor/index.js";
 import { executeInit } from "./init/index.js";
-import { executeInstall } from "./install/index.js";
+import {
+  createReadlineInstallPrompter,
+  executeInstall,
+  type InstallPrompter,
+  type InstallTargetRequest,
+} from "./install/index.js";
 import { runList, validateAgentIds } from "./list/index.js";
 import type { ParsedCliArgs } from "./options.js";
 import { runPlanApply, runPlanValidate } from "./plan/index.js";
 import { runCleanupArchives, runStateList, runStateRestore, runStateShow } from "./state/index.js";
 import { runStatus } from "./status/index.js";
-import { executeUninstall } from "./uninstall/index.js";
-import { executeUpdate } from "./update/index.js";
+import { executeMultiUninstall } from "./uninstall/index.js";
+import { executeMultiUpdate } from "./update/index.js";
 import { runValidate } from "./validate/index.js";
 
 export interface CommandContext {
   args: ParsedCliArgs;
+  prompter?: InstallPrompter;
 }
 
 export interface CommandResult {
@@ -36,19 +42,41 @@ export const COMMANDS: Record<string, CommandDefinition> = {
   install: {
     name: "install",
     mutates: true,
-    run(ctx) {
+    async run(ctx) {
       const projectRoot = ctx.args.options.project ?? process.cwd();
       const scope = ctx.args.options.scope ?? "project";
       const explicitAgents = ctx.args.options.agent ?? [];
 
-      let targetAgentIds;
+      let targets: InstallTargetRequest[];
       try {
-        targetAgentIds =
-          explicitAgents.length > 0
-            ? validateAgentIds(explicitAgents)
-            : detectAllAgents({ projectDir: projectRoot })
-                .filter((det) => det.confidence === "confirmed")
-                .map((det) => det.agentId);
+        if (explicitAgents.length > 0) {
+          targets = validateAgentIds(explicitAgents).map((agentId) => ({ agentId, scope }));
+        } else if (
+          !ctx.args.options.nonInteractive &&
+          ctx.args.options.output === "text" &&
+          (ctx.prompter !== undefined || Boolean(process.stdin.isTTY))
+        ) {
+          const candidates = detectAllAgents({ projectDir: projectRoot });
+          const prompter = ctx.prompter ?? createReadlineInstallPrompter();
+          const selected = await prompter.selectTargets({ candidates, defaultScope: scope });
+          if (!selected || selected.length === 0) {
+            return {
+              exitCode: ExitCodes.INVALID_ARGUMENTS,
+              status: "failed",
+              errors: [
+                {
+                  code: ErrorCodes.INVALID_ARGUMENTS,
+                  message: "Installation cancelled or no target agents selected.",
+                },
+              ],
+            };
+          }
+          targets = selected;
+        } else {
+          targets = detectAllAgents({ projectDir: projectRoot })
+            .filter((det) => det.confidence === "confirmed")
+            .map((det) => ({ agentId: det.agentId, scope }));
+        }
       } catch (err) {
         return {
           exitCode: ExitCodes.INVALID_ARGUMENTS,
@@ -62,7 +90,9 @@ export const COMMANDS: Record<string, CommandDefinition> = {
         };
       }
 
-      if (targetAgentIds.length === 0 && !ctx.args.options.dryRun) {
+      const targetAgentIds = [...new Set(targets.map((t) => t.agentId))];
+
+      if (targets.length === 0 && !ctx.args.options.dryRun) {
         return {
           exitCode: ExitCodes.INVALID_ARGUMENTS,
           status: "failed",
@@ -76,7 +106,7 @@ export const COMMANDS: Record<string, CommandDefinition> = {
       }
 
       const installResult = executeInstall({
-        targets: targetAgentIds.map((agentId) => ({ agentId, scope })),
+        targets,
         projectRoot,
         dryRun: ctx.args.options.dryRun,
       });
@@ -126,23 +156,46 @@ export const COMMANDS: Record<string, CommandDefinition> = {
     name: "update",
     mutates: true,
     run(ctx) {
+      const explicitAgents = ctx.args.options.agent;
+      if (explicitAgents && explicitAgents.length > 0) {
+        try {
+          validateAgentIds(explicitAgents);
+        } catch (err) {
+          return {
+            exitCode: ExitCodes.INVALID_ARGUMENTS,
+            status: "failed",
+            errors: [
+              {
+                code: ErrorCodes.INVALID_ARGUMENTS,
+                message: err instanceof Error ? err.message : String(err),
+              },
+            ],
+          };
+        }
+      }
+
       try {
-        const result = executeUpdate({
+        const result = executeMultiUpdate({
           projectRoot: ctx.args.options.project,
+          agents: explicitAgents,
+          scope: ctx.args.options.scope,
           dryRun: ctx.args.options.dryRun,
         });
+        const primary = result.targets[0];
 
         if (!result.success) {
-          const conflict = result.plan.conflicts.length > 0;
+          const conflict = result.conflicts.length > 0;
           return {
             exitCode: conflict ? ExitCodes.INTEGRITY_CONFLICT : ExitCodes.GENERAL_FAILURE,
             status: "failed",
             data: {
-              targetDir: result.targetDir,
+              targetDir: primary?.targetDir,
+              targets: result.targets,
               dryRun: result.dryRun,
               rolledBack: result.rolledBack ?? false,
-              summary: result.plan.summary,
-              conflicts: result.plan.conflicts,
+              summary: result.summary,
+              conflicts: result.conflicts,
+              files: result.files,
             },
             errors: [
               {
@@ -157,11 +210,13 @@ export const COMMANDS: Record<string, CommandDefinition> = {
           exitCode: ExitCodes.SUCCESS,
           status: "completed",
           data: {
-            targetDir: result.targetDir,
+            targetDir: primary?.targetDir,
+            targets: result.targets,
             dryRun: result.dryRun,
-            symlink: result.plan.isSymlink,
-            summary: result.plan.summary,
-            files: result.plan.files,
+            symlink: primary?.plan.isSymlink ?? false,
+            summary: result.summary,
+            files: result.files,
+            conflicts: result.conflicts,
           },
         };
       } catch (err) {
@@ -185,18 +240,40 @@ export const COMMANDS: Record<string, CommandDefinition> = {
     name: "uninstall",
     mutates: true,
     run(ctx) {
-      const result = executeUninstall({
+      const explicitAgents = ctx.args.options.agent;
+      if (explicitAgents && explicitAgents.length > 0) {
+        try {
+          validateAgentIds(explicitAgents);
+        } catch (err) {
+          return {
+            exitCode: ExitCodes.INVALID_ARGUMENTS,
+            status: "failed",
+            errors: [
+              {
+                code: ErrorCodes.INVALID_ARGUMENTS,
+                message: err instanceof Error ? err.message : String(err),
+              },
+            ],
+          };
+        }
+      }
+
+      const result = executeMultiUninstall({
         projectRoot: ctx.args.options.project,
+        agents: explicitAgents,
+        scope: ctx.args.options.scope,
         dryRun: ctx.args.options.dryRun,
       });
+      const primary = result.targets[0];
 
       if (!result.success) {
         return {
           exitCode: ExitCodes.GENERAL_FAILURE,
           status: "failed",
           data: {
-            targetDir: result.targetDir,
-            retainedPath: result.retainedPath,
+            targetDir: primary?.targetDir,
+            targets: result.targets,
+            retainedPath: primary?.retainedPath,
           },
           errors: [
             {
@@ -207,24 +284,21 @@ export const COMMANDS: Record<string, CommandDefinition> = {
         };
       }
 
-      const preserved = result.plan.items.filter(
-        (item) => item.action === "preserve_modified" || item.action === "preserve_unowned",
-      );
-
       return {
         exitCode: ExitCodes.SUCCESS,
         status: "completed",
         data: {
-          targetDir: result.targetDir,
+          targetDir: primary?.targetDir,
+          targets: result.targets,
           dryRun: result.dryRun,
-          kind: result.plan.kind,
-          summary: result.plan.summary,
-          items: result.plan.items,
-          manifestRemoved: result.manifestRemoved,
-          directoryRemoved: result.directoryRemoved,
-          ...(result.retainedPath !== undefined ? { retainedPath: result.retainedPath } : {}),
+          kind: primary?.plan.kind ?? "not_installed",
+          summary: result.summary,
+          items: result.items,
+          manifestRemoved: result.targets.some((t) => t.manifestRemoved),
+          directoryRemoved: result.targets.every((t) => t.directoryRemoved),
+          ...(primary?.retainedPath !== undefined ? { retainedPath: primary.retainedPath } : {}),
         },
-        warnings: preserved.map((item) => `[${item.action}] ${item.relativePath}: ${item.reason}`),
+        warnings: result.warnings,
       };
     },
   },

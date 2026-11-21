@@ -4,14 +4,17 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
 import {
+  ExitCodes,
   computeDirectoryManifest,
   loadManifest,
   saveManifest,
   verifyManifestIntegrity,
   type InstallManifest,
 } from "@dobbymin/github-convention-core";
+import { executeInstall } from "../install/index.js";
+import { runCli } from "../runner.js";
 import { executeUninstall } from "../uninstall/index.js";
-import { executeUpdate, planUpdate } from "./index.js";
+import { executeMultiUpdate, executeUpdate, planUpdate, resolveUpdateTargets } from "./index.js";
 
 const SKILL = `---\nname: github-convention\ndescription: Test skill\n---\n\n# Skill\n`;
 
@@ -203,4 +206,114 @@ test("update: preserved user edits remain preserved on subsequent uninstall and 
   );
 
   fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("executeMultiUpdate: updates multiple agents across project/global/both scopes and preserves modified files", (t) => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ghc-multi-upd-proj-"));
+  const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "ghc-multi-upd-home-"));
+  const sourceDir = path.join(projectRoot, "skills", "github-convention");
+  t.after(() => {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+    fs.rmSync(homeDir, { recursive: true, force: true });
+  });
+
+  write(sourceDir, "SKILL.md", SKILL);
+  write(sourceDir, "references/guide.md", "guide v1\n");
+
+  const installRes = executeInstall({
+    targets: [
+      { agentId: "codex", scope: "both" },
+      { agentId: "claude-code", scope: "global" },
+    ],
+    projectRoot,
+    homeDir,
+    sourceSkillDir: sourceDir,
+    forceCopy: true,
+  });
+  assert.equal(installRes.success, true);
+
+  const claudeGlobal = path.join(homeDir, ".claude", "skills", "github-convention");
+  const codexGlobal = path.join(homeDir, ".agents", "skills", "github-convention");
+  const codexProject = path.join(projectRoot, ".agents", "skills", "github-convention");
+
+  // User edits a managed file in claude-code global while upstream leaves it unchanged
+  write(claudeGlobal, "references/guide.md", "user custom guide\n");
+  write(sourceDir, "references/new-doc.md", "added in v2\n");
+
+  const resolvedBoth = resolveUpdateTargets({
+    projectRoot,
+    homeDir,
+    agents: ["codex", "claude-code"],
+    scope: "both",
+  }).map((p) => path.resolve(p));
+  assert.ok(resolvedBoth.includes(path.resolve(codexProject)));
+  assert.ok(resolvedBoth.includes(path.resolve(codexGlobal)));
+  assert.ok(resolvedBoth.includes(path.resolve(claudeGlobal)));
+
+  const dryRes = executeMultiUpdate({
+    projectRoot,
+    homeDir,
+    agents: ["codex", "claude-code"],
+    scope: "both",
+    dryRun: true,
+  });
+  assert.equal(dryRes.success, true);
+  assert.equal(dryRes.dryRun, true);
+  assert.equal(fs.existsSync(path.join(codexGlobal, "references", "new-doc.md")), false);
+
+  const realRes = executeMultiUpdate({
+    projectRoot,
+    homeDir,
+    agents: ["codex", "claude-code"],
+    scope: "both",
+  });
+  assert.equal(realRes.success, true);
+  assert.ok(realRes.summary.add >= 3);
+  assert.ok(realRes.summary.preserve >= 1);
+  assert.equal(
+    fs.readFileSync(path.join(claudeGlobal, "references", "guide.md"), "utf-8"),
+    "user custom guide\n",
+  );
+  assert.equal(
+    fs.readFileSync(path.join(codexGlobal, "references", "new-doc.md"), "utf-8"),
+    "added in v2\n",
+  );
+  assert.equal(
+    fs.readFileSync(path.join(codexProject, "references", "new-doc.md"), "utf-8"),
+    "added in v2\n",
+  );
+});
+
+test("CLI update: supports --agent and --scope and rejects unknown --agent", async (t) => {
+  const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ghc-cli-upd-"));
+  t.after(() => fs.rmSync(projectRoot, { recursive: true, force: true }));
+
+  const invalidRes = await runCli(
+    ["update", "--agent", "nonexistent-agent", "--project", projectRoot, "--output", "json"],
+    { stdout: () => {}, stderr: () => {} },
+  );
+  assert.equal(invalidRes.exitCode, ExitCodes.INVALID_ARGUMENTS);
+
+  const dryRes = await runCli(
+    [
+      "update",
+      "--agent",
+      "codex",
+      "--scope",
+      "project",
+      "--project",
+      projectRoot,
+      "--dry-run",
+      "--output",
+      "json",
+    ],
+    { stdout: () => {}, stderr: () => {} },
+  );
+  assert.equal(dryRes.exitCode, ExitCodes.SUCCESS);
+  const data = dryRes.envelope.data as { targetDir: string; targets: unknown[] };
+  assert.equal(
+    path.resolve(data.targetDir),
+    path.resolve(path.join(projectRoot, ".agents", "skills", "github-convention")),
+  );
+  assert.equal(data.targets.length, 1);
 });

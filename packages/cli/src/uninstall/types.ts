@@ -1,4 +1,5 @@
 import type { InstallManifest } from "@dobbymin/github-convention-core";
+import type { InstallScope } from "../options.js";
 
 export type UninstallAction = "remove" | "preserve_modified" | "missing" | "preserve_unowned";
 
@@ -24,6 +25,9 @@ export interface UninstallPlan {
 export interface UninstallOptions {
   targetDir?: string;
   projectRoot?: string;
+  homeDir?: string;
+  agents?: readonly string[];
+  scope?: InstallScope;
   dryRun?: boolean;
 }
 
@@ -35,5 +39,15 @@ export interface UninstallResult {
   manifestRemoved: boolean;
   directoryRemoved: boolean;
   retainedPath?: string;
+  error?: string;
+}
+
+export interface MultiUninstallResult {
+  success: boolean;
+  dryRun: boolean;
+  targets: UninstallResult[];
+  items: UninstallItem[];
+  summary: UninstallPlan["summary"];
+  warnings: string[];
   error?: string;
 }

@@ -4,14 +4,25 @@ import {
   DEFAULT_CONFIG,
   analyzeRepository,
   atomicWriteFile,
+  computeDirectoryManifest,
+  saveManifest,
   stringifyYaml,
+  type InstallManifest,
   type RepositoryAnalysis,
 } from "@dobbymin/github-convention-core";
+import cliPackage from "../../package.json" with { type: "json" };
 import { applyGitignorePlan, planGitignoreUpdates } from "../ignore/index.js";
+import {
+  FALLBACK_SKILL_MD,
+  copyDirectoryRecursive,
+  resolveSkillSourceDir,
+} from "../install/index.js";
 import type { InitOptions, InitPlan, InitResult, PlannedFileAction } from "./types.js";
 
 const CONFIG_REL_PATH = ".github-convention/config.yaml";
 const CONVENTIONS_README_REL_PATH = ".github-convention/conventions/README.md";
+const CANONICAL_SKILL_DIR_REL_PATH = ".agents/skills/github-convention";
+const CANONICAL_SKILL_REL_PATH = ".agents/skills/github-convention/SKILL.md";
 
 const buildProjectConfigYaml = (): string => {
   return stringifyYaml(DEFAULT_CONFIG) + "\n";
@@ -108,6 +119,20 @@ const buildInitPlanFromAnalysis = (
         reason: "Create project-only conventions outside base Skill.",
       };
 
+  const canonicalSkillAbsPath = path.join(projectRoot, CANONICAL_SKILL_REL_PATH);
+  const canonicalSkillExists = fs.existsSync(canonicalSkillAbsPath);
+  const canonicalSkillAction: PlannedFileAction = canonicalSkillExists
+    ? {
+        relativePath: CANONICAL_SKILL_REL_PATH,
+        action: "skip",
+        reason: "Canonical project Skill already exists.",
+      }
+    : {
+        relativePath: CANONICAL_SKILL_REL_PATH,
+        action: "create",
+        reason: "Create canonical project Skill.",
+      };
+
   const ignorePlan = planGitignoreUpdates({
     projectRoot,
     adapterFallbackPaths,
@@ -130,8 +155,9 @@ const buildInitPlanFromAnalysis = (
     analysis,
     configAction,
     conventionsAction,
+    canonicalSkillAction,
     ignorePlan,
-    actions: [configAction, conventionsAction, ignoreAction],
+    actions: [configAction, conventionsAction, canonicalSkillAction, ignoreAction],
     ...(configAction.action === "create" ? { proposedConfigYaml: buildProjectConfigYaml() } : {}),
     ...(conventionsAction.action === "create"
       ? { proposedConventionsReadme: buildProjectConventionsReadme(analysis) }
@@ -176,6 +202,32 @@ export const executeInit = (options: InitOptions = {}): InitResult => {
         plan.proposedConventionsReadme,
       );
       writtenFiles.push(CONVENTIONS_README_REL_PATH);
+    }
+
+    if (plan.canonicalSkillAction.action === "create") {
+      const canonicalSkillDir = path.join(projectRoot, CANONICAL_SKILL_DIR_REL_PATH);
+      const resolvedSourceDir = resolveSkillSourceDir(projectRoot);
+      if (resolvedSourceDir) {
+        copyDirectoryRecursive(resolvedSourceDir, canonicalSkillDir);
+      } else {
+        fs.mkdirSync(canonicalSkillDir, { recursive: true });
+        fs.writeFileSync(path.join(canonicalSkillDir, "SKILL.md"), FALLBACK_SKILL_MD, "utf-8");
+      }
+
+      const files = computeDirectoryManifest(canonicalSkillDir);
+      const manifest: InstallManifest = {
+        schemaVersion: 1,
+        skillName: "github-convention",
+        skillVersion: cliPackage.version,
+        installedAt: new Date().toISOString(),
+        agentId: "canonical",
+        scope: "project",
+        targetPath: canonicalSkillDir,
+        installType: "canonical",
+        files,
+      };
+      saveManifest(canonicalSkillDir, manifest);
+      writtenFiles.push(CANONICAL_SKILL_REL_PATH);
     }
 
     if (applyGitignorePlan(plan.ignorePlan, false)) {
