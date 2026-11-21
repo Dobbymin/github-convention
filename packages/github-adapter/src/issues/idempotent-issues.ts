@@ -10,7 +10,11 @@ import {
   type SubIssueDraft,
 } from "@dobbymin/github-convention-core";
 import type { GhCommandRunner } from "../auth/types.js";
-import { addBlockedByDependency, linkSubIssue } from "../dependencies/dependency-links.js";
+import {
+  addBlockedByDependency,
+  linkSubIssue,
+  resolveIssueDatabaseId,
+} from "../dependencies/dependency-links.js";
 import type { GitHubReadAdapter } from "../read/read-adapter.js";
 import type { GitHubIssue } from "../read/types.js";
 import type {
@@ -214,19 +218,31 @@ export const applyApprovedIssues = async (
 
   const dependencies: DependencyLinkResult[] = [];
   if (options.linkDependencies !== false && options.repo) {
+    const repo = options.repo;
+    const issueNumberToDatabaseId = new Map<number, number>();
+    const getDatabaseId = async (issueNumber: number): Promise<number> => {
+      const cached = issueNumberToDatabaseId.get(issueNumber);
+      if (cached !== undefined) return cached;
+      const resolved = await resolveIssueDatabaseId(writeRunner, repo, issueNumber);
+      issueNumberToDatabaseId.set(issueNumber, resolved);
+      return resolved;
+    };
+
     const parentNumber = taskToIssueNumber.get(plan.parent.id);
     for (const sub of plan.subIssues) {
       const subNumber = taskToIssueNumber.get(sub.id);
       if (parentNumber !== undefined && subNumber !== undefined) {
+        const subDbId = dryRun ? undefined : await getDatabaseId(subNumber);
         dependencies.push(
           await linkSubIssue(
             writeRunner,
-            options.repo,
+            repo,
             plan.parent.id,
             parentNumber,
             sub.id,
             subNumber,
             dryRun,
+            subDbId,
           ),
         );
       }
@@ -234,15 +250,17 @@ export const applyApprovedIssues = async (
       for (const depId of sub.hardDependencies) {
         const depNumber = taskToIssueNumber.get(depId);
         if (subNumber !== undefined && depNumber !== undefined) {
+          const depDbId = dryRun ? undefined : await getDatabaseId(depNumber);
           dependencies.push(
             await addBlockedByDependency(
               writeRunner,
-              options.repo,
+              repo,
               sub.id,
               subNumber,
               depId,
               depNumber,
               dryRun,
+              depDbId,
             ),
           );
         } else if (dryRun) {

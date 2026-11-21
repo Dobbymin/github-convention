@@ -1,9 +1,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as readline from "node:readline/promises";
 import {
   approveGroup,
+  computeEffectiveReadiness,
   createInitialApprovalRecord,
+  ErrorCodes,
   loadApprovalRecord,
+  saveApprovalRecord,
   validateIssuePlan,
   type IssuePlan,
 } from "@dobbymin/github-convention-core";
@@ -17,25 +21,71 @@ import type {
 
 const DEFAULT_PLAN_REL = [".github-convention", "state", "active", "plan.json"] as const;
 
-export const runPlanValidate = (options: PlanValidateOptions = {}): PlanValidateResult => {
-  const projectRoot = options.projectRoot ?? process.cwd();
-  const planPath = options.planPath ?? path.join(projectRoot, ...DEFAULT_PLAN_REL);
+const resolvePlanPath = (projectRoot: string, planPath?: string): string => {
+  if (!planPath) {
+    return path.join(projectRoot, ...DEFAULT_PLAN_REL);
+  }
+  return path.isAbsolute(planPath) ? planPath : path.resolve(projectRoot, planPath);
+};
 
+type LoadedPlan = { ok: true; plan: IssuePlan } | { ok: false; missing: boolean; error: string };
+
+const loadPlanFromFile = (planPath: string): LoadedPlan => {
   if (!fs.existsSync(planPath)) {
     return {
-      subcommand: "validate",
-      valid: true,
+      ok: false,
+      missing: true,
+      error: `Plan file not found: ${planPath}`,
     };
   }
 
-  const raw = fs.readFileSync(planPath, "utf-8");
-  const plan = JSON.parse(raw) as IssuePlan;
-  const validation = validateIssuePlan(plan);
+  try {
+    const raw = fs.readFileSync(planPath, "utf-8");
+    const plan = JSON.parse(raw) as IssuePlan;
+    return { ok: true, plan };
+  } catch (err) {
+    return {
+      ok: false,
+      missing: false,
+      error: `Invalid JSON in plan file ${planPath}: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+};
 
+const promptTerminalApproval = async (plan: IssuePlan): Promise<boolean> => {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stderr,
+  });
+  try {
+    const answer = await rl.question(
+      `Apply issue plan '${plan.planId}' (${plan.subIssues.length} sub-issue(s)) to GitHub? [y/N] `,
+    );
+    return /^(y|yes)$/i.test(answer.trim());
+  } finally {
+    rl.close();
+  }
+};
+
+export const runPlanValidate = (options: PlanValidateOptions = {}): PlanValidateResult => {
+  const projectRoot = options.projectRoot ?? process.cwd();
+  const planPath = resolvePlanPath(projectRoot, options.planPath);
+  const loaded = loadPlanFromFile(planPath);
+
+  if (!loaded.ok) {
+    return {
+      subcommand: "validate",
+      valid: false,
+      errorCode: ErrorCodes.CONFIG_INVALID,
+      error: loaded.error,
+    };
+  }
+
+  const validation = validateIssuePlan(loaded.plan);
   return {
     subcommand: "validate",
     valid: validation.valid,
-    planId: plan.planId,
+    planId: loaded.plan.planId,
     validation,
   };
 };
@@ -45,59 +95,97 @@ export const runPlanApply = async (
 ): Promise<PlanApplyCommandResult> => {
   const dryRun = options.dryRun ?? false;
   const projectRoot = options.projectRoot ?? process.cwd();
+  const planPath = resolvePlanPath(projectRoot, options.planPath);
 
-  if (dryRun) {
-    if (options.plan) {
-      const approvals =
-        options.approvals ??
-        loadApprovalRecord(projectRoot, options.plan.planId) ??
-        createInitialApprovalRecord(options.plan);
-      const readAdapter = options.readAdapter ?? new GitHubReadAdapter({ repo: options.repo });
-      const result = await applyApprovedIssues(options.plan, approvals, readAdapter, undefined, {
-        ...(options.repo !== undefined ? { repo: options.repo } : {}),
-        dryRun: true,
-      });
+  let plan = options.plan;
+  if (!plan) {
+    const loaded = loadPlanFromFile(planPath);
+    if (!loaded.ok) {
+      if (dryRun && loaded.missing) {
+        return {
+          status: "completed",
+          dryRun: true,
+        };
+      }
       return {
-        status: "completed",
-        dryRun: true,
-        result,
+        status: "failed",
+        dryRun,
+        errorCode: ErrorCodes.CONFIG_INVALID,
+        error: loaded.error,
       };
     }
-
-    return {
-      status: "completed",
-      dryRun: true,
-    };
+    plan = loaded.plan;
   }
 
-  if (options.nonInteractive && !options.explicitApproval) {
-    return {
-      status: "approval_required",
-      dryRun: false,
-      approvalRequired: true,
-    };
-  }
-
-  if (!options.plan) {
-    return {
-      status: "approval_required",
-      dryRun: false,
-      approvalRequired: true,
-    };
-  }
-
-  const validation = validateIssuePlan(options.plan);
+  const validation = validateIssuePlan(plan);
   if (!validation.valid) {
     return {
       status: "failed",
-      dryRun: false,
-      error: `Issue plan '${options.plan.planId}' failed validation (${validation.errors.length} error(s)).`,
+      dryRun,
+      errorCode: ErrorCodes.CONFIG_INVALID,
+      error: `Issue plan '${plan.planId}' failed validation (${validation.errors.length} error(s)).`,
     };
   }
 
-  const stored = options.approvals ?? loadApprovalRecord(projectRoot, options.plan.planId);
-  if (!stored) {
-    if (!options.explicitApproval) {
+  const readAdapter = options.readAdapter ?? new GitHubReadAdapter({ repo: options.repo });
+
+  if (dryRun) {
+    const approvals =
+      options.approvals ??
+      loadApprovalRecord(projectRoot, plan.planId) ??
+      createInitialApprovalRecord(plan);
+    let repo = options.repo;
+    if (!repo) {
+      try {
+        const meta = await readAdapter.getRepoMetadata();
+        repo = meta.nameWithOwner;
+      } catch {
+        // Best-effort in dry-run: do not fail if getRepoMetadata is unavailable.
+      }
+    }
+    const result = await applyApprovedIssues(plan, approvals, readAdapter, options.writeRunner, {
+      ...(repo !== undefined ? { repo } : {}),
+      dryRun: true,
+    });
+    return {
+      status: "completed",
+      dryRun: true,
+      result,
+    };
+  }
+
+  let approvals = options.approvals ?? loadApprovalRecord(projectRoot, plan.planId);
+  const isParentApproved = approvals
+    ? computeEffectiveReadiness(approvals).parentEligibleToCreate
+    : false;
+
+  if (!isParentApproved) {
+    if (options.explicitApproval) {
+      approvals = approveGroup(approvals ?? createInitialApprovalRecord(plan));
+      saveApprovalRecord(projectRoot, approvals);
+    } else if (options.nonInteractive) {
+      return {
+        status: "approval_required",
+        dryRun: false,
+        approvalRequired: true,
+      };
+    } else if (
+      options.promptApproval ||
+      (Boolean(process.stdin.isTTY) && (options.output ?? "text") === "text")
+    ) {
+      const approved = options.promptApproval
+        ? await options.promptApproval(plan)
+        : await promptTerminalApproval(plan);
+      if (!approved) {
+        return {
+          status: "approval_required",
+          dryRun: false,
+          approvalRequired: true,
+        };
+      }
+      approvals = approveGroup(approvals ?? createInitialApprovalRecord(plan));
+      saveApprovalRecord(projectRoot, approvals);
+    } else {
       return {
         status: "approval_required",
         dryRun: false,
@@ -106,10 +194,14 @@ export const runPlanApply = async (
     }
   }
 
-  const approvals = stored ?? approveGroup(createInitialApprovalRecord(options.plan));
-  const readAdapter = options.readAdapter ?? new GitHubReadAdapter({ repo: options.repo });
-  const result = await applyApprovedIssues(options.plan, approvals, readAdapter, undefined, {
-    ...(options.repo !== undefined ? { repo: options.repo } : {}),
+  let repo = options.repo;
+  if (!repo) {
+    const meta = await readAdapter.getRepoMetadata();
+    repo = meta.nameWithOwner;
+  }
+
+  const result = await applyApprovedIssues(plan, approvals!, readAdapter, options.writeRunner, {
+    repo,
     dryRun: false,
   });
 

@@ -504,10 +504,24 @@ export const COMMANDS: Record<string, CommandDefinition> = {
       }
 
       if (sub === "validate") {
+        const planPath = ctx.args.positionals[0];
         const result = runPlanValidate({
           projectRoot: ctx.args.options.project,
+          ...(planPath !== undefined ? { planPath } : {}),
         });
         if (!result.valid) {
+          const errors =
+            result.validation && result.validation.errors.length > 0
+              ? result.validation.errors.map((err) => ({
+                  code: err.code,
+                  message: err.message,
+                }))
+              : [
+                  {
+                    code: result.errorCode ?? ErrorCodes.CONFIG_INVALID,
+                    message: result.error ?? "Plan validation failed.",
+                  },
+                ];
           return {
             exitCode: ExitCodes.INVALID_ARGUMENTS,
             status: "failed",
@@ -516,11 +530,9 @@ export const COMMANDS: Record<string, CommandDefinition> = {
               valid: false,
               ...(result.planId !== undefined ? { planId: result.planId } : {}),
               ...(result.validation !== undefined ? { validation: result.validation } : {}),
+              ...(result.error !== undefined ? { error: result.error } : {}),
             },
-            errors: (result.validation?.errors ?? []).map((err) => ({
-              code: err.code,
-              message: err.message,
-            })),
+            errors,
           };
         }
         return {
@@ -536,11 +548,28 @@ export const COMMANDS: Record<string, CommandDefinition> = {
       }
 
       if (sub === "apply") {
+        const planPath = ctx.args.positionals[0];
         const applied = await runPlanApply({
           projectRoot: ctx.args.options.project,
+          ...(planPath !== undefined ? { planPath } : {}),
           dryRun: ctx.args.options.dryRun,
           nonInteractive: ctx.args.options.nonInteractive,
+          output: ctx.args.options.output,
         });
+
+        if (applied.status === "failed") {
+          const isConfigInvalid = applied.errorCode === ErrorCodes.CONFIG_INVALID;
+          return {
+            exitCode: isConfigInvalid ? ExitCodes.INVALID_ARGUMENTS : ExitCodes.GENERAL_FAILURE,
+            status: "failed",
+            errors: [
+              {
+                code: applied.errorCode ?? ErrorCodes.OPERATION_FAILED,
+                message: applied.error ?? "Plan apply failed.",
+              },
+            ],
+          };
+        }
 
         if (applied.dryRun) {
           return {
@@ -568,19 +597,6 @@ export const COMMANDS: Record<string, CommandDefinition> = {
               {
                 code: ErrorCodes.APPROVAL_REQUIRED,
                 message: "Explicit user approval is required.",
-              },
-            ],
-          };
-        }
-
-        if (applied.status === "failed") {
-          return {
-            exitCode: ExitCodes.GENERAL_FAILURE,
-            status: "failed",
-            errors: [
-              {
-                code: ErrorCodes.OPERATION_FAILED,
-                message: applied.error ?? "Plan apply failed.",
               },
             ],
           };

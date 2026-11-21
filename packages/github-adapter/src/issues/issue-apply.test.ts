@@ -102,6 +102,10 @@ test("applyApprovedIssues: creates only approved issues, links native dependenci
     if (args[0] === "api" && args.includes("GET")) {
       return "[]";
     }
+    if (args[0] === "api" && args.includes("--jq") && args.includes(".id")) {
+      const match = /\/issues\/(\d+)$/.exec(args[1] ?? "");
+      return match ? String(Number(match[1]) + 900000) : "0";
+    }
     return "{}";
   };
 
@@ -166,6 +170,10 @@ test("applyApprovedIssues: lost-response retry reuses existing issue via idempot
     if (args[0] === "api" && args.includes("GET")) {
       return "[]";
     }
+    if (args[0] === "api" && args.includes("--jq") && args.includes(".id")) {
+      const match = /\/issues\/(\d+)$/.exec(args[1] ?? "");
+      return match ? String(Number(match[1]) + 900000) : "0";
+    }
     return "{}";
   };
 
@@ -219,4 +227,75 @@ test("applyApprovedIssues: skips rejected tasks and blocks approved downstream t
     },
   );
   assert.equal(rejectedResult.items.find((i) => i.taskId === "TASK-1")?.action, "skip_unapproved");
+});
+
+test("applyApprovedIssues: resolves and caches numeric databaseId for sub_issue_id and blocked_by issue_id", async () => {
+  const dbIdByNumber: Record<number, number> = {
+    10: 9910010,
+    11: 9910011,
+    12: 9910012,
+  };
+  let nextNumber = 10;
+  const dbIdLookupCounts = new Map<number, number>();
+  const postCalls: Array<{ endpoint: string; field: string }> = [];
+
+  const readAdapter = new GitHubReadAdapter({
+    repo: "Dobbymin/github-convention",
+    runner: () => "[]",
+  });
+
+  const writeRunner: GhCommandRunner = (_file, args) => {
+    if (args[0] === "issue" && args[1] === "create") {
+      return `https://github.com/Dobbymin/github-convention/issues/${nextNumber++}`;
+    }
+    if (args[0] === "api" && args.includes("GET")) {
+      return "[]";
+    }
+    if (args[0] === "api" && args.includes("--jq") && args.includes(".id")) {
+      const match = /\/issues\/(\d+)$/.exec(args[1] ?? "");
+      const num = Number(match?.[1] ?? 0);
+      dbIdLookupCounts.set(num, (dbIdLookupCounts.get(num) ?? 0) + 1);
+      // Return JSON object for issue 12 to also cover JSON-object parsing path
+      if (num === 12) {
+        return JSON.stringify({ id: dbIdByNumber[num] });
+      }
+      return String(dbIdByNumber[num] ?? 0);
+    }
+    if (args[0] === "api" && args.includes("POST")) {
+      const fieldIdx = args.indexOf("-F") + 1;
+      postCalls.push({
+        endpoint: args[1] ?? "",
+        field: args[fieldIdx] ?? "",
+      });
+      return "{}";
+    }
+    return "{}";
+  };
+
+  let approvals = createInitialApprovalRecord(SAMPLE_PLAN);
+  approvals = approveGroup(approvals);
+
+  const result = await applyApprovedIssues(SAMPLE_PLAN, approvals, readAdapter, writeRunner, {
+    repo: "Dobbymin/github-convention",
+  });
+
+  assert.equal(result.createdCount, 3);
+  assert.equal(result.dependencies.length, 3);
+  assert.deepEqual(postCalls, [
+    {
+      endpoint: "repos/Dobbymin/github-convention/issues/10/sub_issues",
+      field: `sub_issue_id=${dbIdByNumber[11]}`,
+    },
+    {
+      endpoint: "repos/Dobbymin/github-convention/issues/10/sub_issues",
+      field: `sub_issue_id=${dbIdByNumber[12]}`,
+    },
+    {
+      endpoint: "repos/Dobbymin/github-convention/issues/12/dependencies/blocked_by",
+      field: `issue_id=${dbIdByNumber[11]}`,
+    },
+  ]);
+  // Issue 11 is both a sub-issue and a blocking dependency, yet looked up only once.
+  assert.equal(dbIdLookupCounts.get(11), 1);
+  assert.equal(dbIdLookupCounts.get(12), 1);
 });
