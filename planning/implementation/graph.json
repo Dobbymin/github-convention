@@ -180,7 +180,7 @@
       "contract_file": "nodes/n11-github-read-adapter-and-issue-plan-drafting.json",
       "priority": "P1",
       "hard_dependencies": ["N10"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": false
     },
     {

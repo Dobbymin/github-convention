@@ -6,4 +6,5 @@ export * from "./lock/index.js";
 export * from "./logging/index.js";
 export * from "./manifest/index.js";
 export * from "./output/index.js";
+export * from "./plan/index.js";
 export * from "./state/index.js";
