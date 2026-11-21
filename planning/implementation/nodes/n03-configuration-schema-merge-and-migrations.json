@@ -44,6 +44,6 @@
     "User approval for unresolved semantic migration conflicts."
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; repeated identical failure escalates.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N01 and approved Issue required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }
