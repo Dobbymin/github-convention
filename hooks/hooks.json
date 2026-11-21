@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"import('node:path').then(p => import(require('node:url').pathToFileURL(p.join((process.env.CLAUDE_PLUGIN_ROOT || '').split(String.fromCharCode(92)).join('/'), 'hooks', 'session-context.mjs')).href)).catch(() => {})\"",
+            "timeout": 10,
+            "statusMessage": "Checking github-convention config..."
+          }
+        ]
+      }
+    ]
+  }
+}
