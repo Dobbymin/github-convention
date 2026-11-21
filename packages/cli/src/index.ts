@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 
-import { assertCompatibleVersions } from "@github-convention/core";
+import { assertCompatiblePackageMetadata } from "@github-convention/core";
+import cliPackage from "../package.json" with { type: "json" };
+import skillPackage from "../../skill/package.json" with { type: "json" };
 
-const cliVersion = "0.1.0";
-const skillVersion = "0.1.0";
-const compatibleCliRange = "^0.1.0";
+assertCompatiblePackageMetadata(cliPackage, skillPackage);
 
-assertCompatibleVersions(cliVersion, skillVersion, compatibleCliRange);
-console.log(`github-convention ${cliVersion}`);
+console.log(`github-convention ${cliPackage.version}`);

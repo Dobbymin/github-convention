@@ -1,5 +1,16 @@
 export type SemVer = Readonly<{ major: number; minor: number; patch: number }>;
 
+export type VersionedPackage = Readonly<{
+  version: string;
+}>;
+
+export type SkillPackage = VersionedPackage &
+  Readonly<{
+    githubConvention: Readonly<{
+      compatibleCli: string;
+    }>;
+  }>;
+
 const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 const parseSemVer = (version: string): SemVer | null => {
@@ -42,4 +53,15 @@ export const assertCompatibleVersions = (
       `CLI version ${cliVersion} is not compatible with Skill ${skillVersion} (${cliRange}).`,
     );
   }
+};
+
+export const assertCompatiblePackageMetadata = (
+  cliPackage: VersionedPackage,
+  skillPackage: SkillPackage,
+): void => {
+  assertCompatibleVersions(
+    cliPackage.version,
+    skillPackage.version,
+    skillPackage.githubConvention.compatibleCli,
+  );
 };

@@ -8,6 +8,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "types": ["node"],
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },
