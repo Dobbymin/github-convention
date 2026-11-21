@@ -44,6 +44,6 @@
     "Explicit user approval before any real installation mutation."
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; preserve staging/backups after failure.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N02, N03, N05 and approved Issue required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }

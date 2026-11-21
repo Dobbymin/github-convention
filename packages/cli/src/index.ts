@@ -8,6 +8,7 @@ import { runCli } from "./runner.js";
 export * from "./options.js";
 export * from "./commands.js";
 export * from "./formatter.js";
+export * from "./install/index.js";
 export * from "./runner.js";
 
 assertCompatiblePackageMetadata(cliPackage, skillPackage);
