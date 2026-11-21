@@ -1,5 +1,6 @@
 export * from "./analysis/index.js";
 export * from "./approval/index.js";
+export * from "./archive/index.js";
 export * from "./cache/index.js";
 export * from "./compatibility.js";
 export * from "./config/index.js";
@@ -8,4 +9,5 @@ export * from "./logging/index.js";
 export * from "./manifest/index.js";
 export * from "./output/index.js";
 export * from "./plan/index.js";
+export * from "./recovery/index.js";
 export * from "./state/index.js";

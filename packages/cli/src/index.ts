@@ -14,6 +14,7 @@ export * from "./install/index.js";
 export * from "./options.js";
 export * from "./plan/index.js";
 export * from "./runner.js";
+export * from "./state/index.js";
 export * from "./uninstall/index.js";
 export * from "./update/index.js";
 export * from "./validate/index.js";
