@@ -236,7 +236,7 @@
       "contract_file": "nodes/n18-branch-protection-and-deployment-observation.json",
       "priority": "P2",
       "hard_dependencies": ["N16"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": true
     },
     {

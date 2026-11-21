@@ -7,6 +7,7 @@ export * from "./config/index.js";
 export * from "./lock/index.js";
 export * from "./logging/index.js";
 export * from "./manifest/index.js";
+export * from "./operations/index.js";
 export * from "./orchestration/index.js";
 export * from "./output/index.js";
 export * from "./plan/index.js";
