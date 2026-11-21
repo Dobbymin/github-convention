@@ -5,11 +5,13 @@ import cliPackage from "../package.json" with { type: "json" };
 import skillPackage from "../../skill/package.json" with { type: "json" };
 import { runCli } from "./runner.js";
 
-export * from "./options.js";
 export * from "./commands.js";
+export * from "./doctor/index.js";
 export * from "./formatter.js";
 export * from "./install/index.js";
+export * from "./options.js";
 export * from "./runner.js";
+export * from "./validate/index.js";
 
 assertCompatiblePackageMetadata(cliPackage, skillPackage);
 

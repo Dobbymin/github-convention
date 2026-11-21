@@ -1,5 +1,7 @@
 import { ExitCodes, ErrorCodes, type OutputError } from "@github-convention/core";
+import { runDoctor } from "./doctor/index.js";
 import type { ParsedCliArgs } from "./options.js";
+import { runValidate } from "./validate/index.js";
 
 export interface CommandContext {
   args: ParsedCliArgs;
@@ -120,15 +122,17 @@ export const COMMANDS: Record<string, CommandDefinition> = {
     name: "doctor",
     mutates: false,
     run(ctx) {
+      const report = runDoctor({
+        projectRoot: ctx.args.options.project,
+        configPath: ctx.args.options.config,
+      });
       return {
         exitCode: ExitCodes.SUCCESS,
         status: "completed",
-        data: {
-          nodeVersion: process.version,
-          platform: process.platform,
-          project: ctx.args.options.project ?? process.cwd(),
-          healthy: true,
-        },
+        data: report as unknown as Record<string, unknown>,
+        warnings: report.checks
+          .filter((c) => c.status === "warn")
+          .map((c) => `[${c.id}] ${c.message ?? c.name}`),
       };
     },
   },
@@ -164,14 +168,29 @@ export const COMMANDS: Record<string, CommandDefinition> = {
     name: "validate",
     mutates: false,
     run(ctx) {
+      const res = runValidate({
+        projectRoot: ctx.args.options.project,
+        configPath: ctx.args.options.config,
+      });
+
+      if (!res.valid) {
+        return {
+          exitCode: ExitCodes.INVALID_ARGUMENTS,
+          status: "failed",
+          data: res as unknown as Record<string, unknown>,
+          warnings: res.warnings,
+          errors: res.errors.map((msg) => ({
+            code: ErrorCodes.CONFIG_INVALID,
+            message: msg,
+          })),
+        };
+      }
+
       return {
         exitCode: ExitCodes.SUCCESS,
         status: "completed",
-        data: {
-          valid: true,
-          configPath: ctx.args.options.config ?? null,
-          project: ctx.args.options.project ?? process.cwd(),
-        },
+        data: res as unknown as Record<string, unknown>,
+        warnings: res.warnings,
       };
     },
   },
