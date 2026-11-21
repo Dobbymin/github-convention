@@ -1,0 +1,14 @@
+{
+  "name": "github-convention",
+  "version": "0.1.1",
+  "description": "Apply a consistent, safe, Issue-driven GitHub development workflow without forking repository conventions.",
+  "author": {
+    "name": "Dobbymin",
+    "url": "https://github.com/Dobbymin"
+  },
+  "homepage": "https://github.com/Dobbymin/github-convention",
+  "repository": "https://github.com/Dobbymin/github-convention",
+  "license": "MIT",
+  "keywords": ["github", "git", "workflow", "convention", "issues", "pr", "agent-skill"],
+  "skills": "./skills/"
+}

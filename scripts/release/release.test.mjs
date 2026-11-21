@@ -14,6 +14,8 @@ import {
   stageArtifacts,
   validatePackageMetadata,
 } from "./build-artifacts.mjs";
+import { checkSkillSync } from "../sync-skill.mjs";
+import { verifyRootManifests } from "../verify-manifests.mjs";
 
 test("package metadata: all workspace packages define required release fields", () => {
   const packages = validatePackageMetadata(REPO_ROOT);
@@ -172,4 +174,12 @@ test("canonical skill sync: skills/github-convention and packages/skill/skill ma
     const b = fs.readFileSync(path.join(bundledDir, rel));
     assert.equal(Buffer.compare(a, b), 0, `Content mismatch in ${rel}`);
   }
+});
+
+test("skill sync helper and root marketplace manifests: align with packages/skill", () => {
+  const syncResult = checkSkillSync(REPO_ROOT);
+  assert.equal(syncResult.inSync, true);
+
+  const manifestResult = verifyRootManifests(REPO_ROOT);
+  assert.equal(manifestResult.verified.length, 5);
 });
