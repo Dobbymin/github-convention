@@ -4,9 +4,17 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": "https://github.com/Dobbymin/github-convention",
+  "homepage": "https://github.com/Dobbymin/github-convention#readme",
   "exports": {
     ".": "./dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "dependencies": {
     "@github-convention/core": "0.1.0"
   }

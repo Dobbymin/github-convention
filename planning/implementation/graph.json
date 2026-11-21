@@ -164,7 +164,7 @@
       "contract_file": "nodes/n09-npm-and-standalone-distribution-artifacts.json",
       "priority": "P0",
       "hard_dependencies": ["N01"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": true
     },
     {
