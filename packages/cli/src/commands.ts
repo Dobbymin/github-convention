@@ -1,9 +1,13 @@
+import { detectAllAgents } from "@github-convention/agent-adapters";
 import { ExitCodes, ErrorCodes, type OutputError } from "@github-convention/core";
 import { runDoctor } from "./doctor/index.js";
 import { executeInit } from "./init/index.js";
+import { executeInstall } from "./install/index.js";
+import { runList, validateAgentIds } from "./list/index.js";
 import type { ParsedCliArgs } from "./options.js";
 import { runPlanApply, runPlanValidate } from "./plan/index.js";
 import { runCleanupArchives, runStateList, runStateRestore, runStateShow } from "./state/index.js";
+import { runStatus } from "./status/index.js";
 import { executeUninstall } from "./uninstall/index.js";
 import { executeUpdate } from "./update/index.js";
 import { runValidate } from "./validate/index.js";
@@ -33,26 +37,86 @@ export const COMMANDS: Record<string, CommandDefinition> = {
     name: "install",
     mutates: true,
     run(ctx) {
-      if (ctx.args.options.dryRun) {
+      const projectRoot = ctx.args.options.project ?? process.cwd();
+      const scope = ctx.args.options.scope ?? "project";
+      const explicitAgents = ctx.args.options.agent ?? [];
+
+      let targetAgentIds;
+      try {
+        targetAgentIds =
+          explicitAgents.length > 0
+            ? validateAgentIds(explicitAgents)
+            : detectAllAgents({ projectDir: projectRoot })
+                .filter((det) => det.confidence === "confirmed")
+                .map((det) => det.agentId);
+      } catch (err) {
         return {
-          exitCode: ExitCodes.SUCCESS,
-          status: "completed",
-          data: {
-            dryRun: true,
-            command: "install",
-            scope: ctx.args.options.scope ?? "project",
-            agents: ctx.args.options.agent ?? [],
-            actions: ["detect_agents", "preview_install_paths"],
-          },
+          exitCode: ExitCodes.INVALID_ARGUMENTS,
+          status: "failed",
+          errors: [
+            {
+              code: ErrorCodes.INVALID_ARGUMENTS,
+              message: err instanceof Error ? err.message : String(err),
+            },
+          ],
         };
       }
+
+      if (targetAgentIds.length === 0 && !ctx.args.options.dryRun) {
+        return {
+          exitCode: ExitCodes.INVALID_ARGUMENTS,
+          status: "failed",
+          errors: [
+            {
+              code: ErrorCodes.INVALID_ARGUMENTS,
+              message: "No confirmed agents detected. Specify target agents with --agent <id,...>.",
+            },
+          ],
+        };
+      }
+
+      const installResult = executeInstall({
+        targets: targetAgentIds.map((agentId) => ({ agentId, scope })),
+        projectRoot,
+        dryRun: ctx.args.options.dryRun,
+      });
+
+      if (!installResult.success) {
+        return {
+          exitCode: ExitCodes.GENERAL_FAILURE,
+          status: "failed",
+          data: {
+            dryRun: ctx.args.options.dryRun,
+            command: "install",
+            scope,
+            agents: targetAgentIds,
+            installed: false,
+            canonicalSourcePath: installResult.canonicalSourcePath,
+            items: installResult.items,
+          },
+          errors: [
+            {
+              code: ErrorCodes.OPERATION_FAILED,
+              message: "One or more agent installations failed.",
+            },
+          ],
+        };
+      }
+
       return {
         exitCode: ExitCodes.SUCCESS,
         status: "completed",
         data: {
-          installed: true,
-          scope: ctx.args.options.scope ?? "project",
-          agents: ctx.args.options.agent ?? [],
+          dryRun: ctx.args.options.dryRun,
+          command: "install",
+          scope,
+          agents: targetAgentIds,
+          installed: !ctx.args.options.dryRun && installResult.success,
+          canonicalSourcePath: installResult.canonicalSourcePath,
+          items: installResult.items,
+          ...(ctx.args.options.dryRun
+            ? { actions: ["detect_agents", "preview_install_paths"] }
+            : {}),
         },
       };
     },
@@ -169,14 +233,32 @@ export const COMMANDS: Record<string, CommandDefinition> = {
     name: "list",
     mutates: false,
     async run(ctx) {
-      return {
-        exitCode: ExitCodes.SUCCESS,
-        status: "completed",
-        data: {
-          agents: [],
-          project: ctx.args.options.project ?? process.cwd(),
-        },
-      };
+      try {
+        const result = runList({
+          projectRoot: ctx.args.options.project,
+          agents: ctx.args.options.agent,
+        });
+        return {
+          exitCode: ExitCodes.SUCCESS,
+          status: "completed",
+          data: {
+            project: result.project,
+            agents: result.agents,
+            installedCount: result.installedCount,
+          },
+        };
+      } catch (err) {
+        return {
+          exitCode: ExitCodes.INVALID_ARGUMENTS,
+          status: "failed",
+          errors: [
+            {
+              code: ErrorCodes.INVALID_ARGUMENTS,
+              message: err instanceof Error ? err.message : String(err),
+            },
+          ],
+        };
+      }
     },
   },
 
@@ -276,13 +358,21 @@ export const COMMANDS: Record<string, CommandDefinition> = {
     name: "status",
     mutates: false,
     async run(ctx) {
+      const result = runStatus({
+        projectRoot: ctx.args.options.project,
+      });
       return {
         exitCode: ExitCodes.SUCCESS,
         status: "completed",
         data: {
-          state: "idle",
-          project: ctx.args.options.project ?? process.cwd(),
+          state: result.state,
+          project: result.project,
+          activeRuns: result.activeRuns,
+          activeCount: result.activeCount,
+          archivedCount: result.archivedCount,
+          latestRun: result.latestRun,
         },
+        warnings: result.warnings,
       };
     },
   },

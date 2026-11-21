@@ -3,7 +3,13 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { test } from "node:test";
-import { loadManifest, verifyManifestIntegrity } from "@github-convention/core";
+import {
+  ErrorCodes,
+  ExitCodes,
+  loadManifest,
+  verifyManifestIntegrity,
+} from "@github-convention/core";
+import { runCli } from "../runner.js";
 import { executeInstall } from "./index.js";
 
 test("installer: establishes single canonical project skill at .agents/skills/github-convention", () => {
@@ -117,4 +123,71 @@ test("installer: dry-run performs inspection only and leaves no files on disk (F
 
   fs.rmSync(tmpProject, { recursive: true, force: true });
   fs.rmSync(tmpHome, { recursive: true, force: true });
+});
+
+test("CLI install command executes real install, preserves dry-run, and rejects unknown agent", async () => {
+  const tmpProject = fs.mkdtempSync(path.join(os.tmpdir(), "cli-inst-proj-"));
+  const templateDir = path.join(tmpProject, "skills", "github-convention");
+  fs.mkdirSync(templateDir, { recursive: true });
+  fs.writeFileSync(path.join(templateDir, "SKILL.md"), "# CLI Install Skill\n", "utf-8");
+
+  const dryRes = await runCli(
+    [
+      "install",
+      "--agent",
+      "codex",
+      "--scope",
+      "project",
+      "--project",
+      tmpProject,
+      "--dry-run",
+      "--output",
+      "json",
+    ],
+    { stdout: () => {}, stderr: () => {} },
+  );
+  assert.equal(dryRes.exitCode, ExitCodes.SUCCESS);
+  assert.equal(
+    fs.existsSync(
+      path.join(tmpProject, ".agents", "skills", "github-convention", ".manifest.json"),
+    ),
+    false,
+  );
+
+  const realRes = await runCli(
+    [
+      "install",
+      "--agent",
+      "codex",
+      "--scope",
+      "project",
+      "--project",
+      tmpProject,
+      "--output",
+      "json",
+    ],
+    { stdout: () => {}, stderr: () => {} },
+  );
+  assert.equal(realRes.exitCode, ExitCodes.SUCCESS);
+  const parsed = JSON.parse(realRes.stdoutText) as {
+    data: { installed: boolean; agents: string[]; items: Array<{ agentId: string }> };
+  };
+  assert.equal(parsed.data.installed, true);
+  assert.deepEqual(parsed.data.agents, ["codex"]);
+  assert.equal(parsed.data.items.length, 1);
+  assert.equal(
+    fs.existsSync(
+      path.join(tmpProject, ".agents", "skills", "github-convention", ".manifest.json"),
+    ),
+    true,
+  );
+
+  const invalidRes = await runCli(
+    ["install", "--agent", "unknown-agent", "--project", tmpProject, "--output", "json"],
+    { stdout: () => {}, stderr: () => {} },
+  );
+  assert.equal(invalidRes.exitCode, ExitCodes.INVALID_ARGUMENTS);
+  assert.equal(invalidRes.envelope.errors[0]?.code, ErrorCodes.INVALID_ARGUMENTS);
+
+  fs.rmSync(tmpProject, { recursive: true, force: true });
 });
