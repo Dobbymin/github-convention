@@ -51,6 +51,14 @@ jobs:
       id-token: write
 
     steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
       - uses: actions/download-artifact@v4
         with:
           name: release-artifacts-ubuntu-latest
@@ -58,7 +66,20 @@ jobs:
       - name: Verify staged checksums
         working-directory: dist-release
         run: sha256sum -c SHA256SUMS.txt
-      - name: Manual release publish gate
+      - name: Publish npm workspaces
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --workspaces --access public
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Approved release environment gate passed."
-          echo "Publish npm packages and create GitHub Release with dist-release/* after removing private:true in release prep."
+          TAG_NAME="${GITHUB_REF_NAME}"
+          if ! echo "$TAG_NAME" | grep -qE '^v'; then
+            TAG_NAME="v$(node -p "require('./package.json').version")"
+          fi
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" dist-release/* --clobber
+          else
+            gh release create "$TAG_NAME" dist-release/* --title "$TAG_NAME" --generate-notes
+          fi

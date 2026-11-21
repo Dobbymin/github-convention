@@ -145,3 +145,31 @@ test("stageArtifacts: generates archives, launchers, targets.json, and verifiabl
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
 });
+
+const collectRelativeFiles = (dir, base = dir) => {
+  const results = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === ".DS_Store") continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...collectRelativeFiles(full, base));
+    } else if (entry.isFile()) {
+      results.push(path.relative(base, full).replace(/\\/g, "/"));
+    }
+  }
+  return results.sort();
+};
+
+test("canonical skill sync: skills/github-convention and packages/skill/skill match 100%", () => {
+  const canonicalDir = path.join(REPO_ROOT, "skills", "github-convention");
+  const bundledDir = path.join(REPO_ROOT, "packages", "skill", "skill");
+  const canonicalFiles = collectRelativeFiles(canonicalDir);
+  const bundledFiles = collectRelativeFiles(bundledDir);
+
+  assert.deepEqual(canonicalFiles, bundledFiles);
+  for (const rel of canonicalFiles) {
+    const a = fs.readFileSync(path.join(canonicalDir, rel));
+    const b = fs.readFileSync(path.join(bundledDir, rel));
+    assert.equal(Buffer.compare(a, b), 0, `Content mismatch in ${rel}`);
+  }
+});

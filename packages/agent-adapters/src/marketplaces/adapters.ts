@@ -1,5 +1,6 @@
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
+import { createRequire } from "node:module";
 import * as path from "node:path";
 import {
   atomicWriteJson,
@@ -7,6 +8,7 @@ import {
   computeFileHash,
   type FileHashRecord,
 } from "@dobbymin/github-convention-core";
+import adapterPackage from "../../package.json" with { type: "json" };
 import type {
   MarketplaceCleanResult,
   MarketplaceFormatId,
@@ -21,7 +23,21 @@ import type {
 
 export const MARKETPLACE_MANIFEST_FILENAME = ".marketplace-manifest.json";
 const DEFAULT_SKILL_NAME = "github-convention";
-const DEFAULT_VERSION = "0.1.0";
+const require = createRequire(import.meta.url);
+
+const resolveDefaultPackageVersion = (): string => {
+  try {
+    const skillPkg = require("@dobbymin/github-convention-skill/package.json") as {
+      version?: unknown;
+    };
+    if (typeof skillPkg.version === "string" && skillPkg.version.trim()) {
+      return skillPkg.version;
+    }
+  } catch {
+    // Fallback to adapter package version
+  }
+  return adapterPackage.version;
+};
 const SKILL_DESCRIPTION =
   "Apply a consistent, safe, Issue-driven GitHub development workflow without forking repository conventions.";
 
@@ -130,7 +146,7 @@ class BaseMarketplaceAdapter implements MarketplacePackagingAdapter {
     }
 
     const canonicalSourceSha256 = computeAggregateCanonicalSha256(canonicalFiles);
-    const version = options?.version ?? DEFAULT_VERSION;
+    const version = options?.version ?? resolveDefaultPackageVersion();
     const dryRun = options?.dryRun ?? false;
     const outDir = options?.outDir ? path.normalize(path.resolve(options.outDir)) : undefined;
 
