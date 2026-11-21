@@ -260,7 +260,7 @@
       "contract_file": "nodes/n21-marketplace-packaging-adapters.json",
       "priority": "P2",
       "hard_dependencies": ["N06", "N09"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": true
     }
   ],
