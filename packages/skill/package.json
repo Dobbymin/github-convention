@@ -2,6 +2,7 @@
   "name": "@github-convention/skill",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "githubConvention": {
     "compatibleCli": "^0.1.0"
   }

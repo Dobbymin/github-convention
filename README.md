@@ -55,3 +55,7 @@ npm test
 ## Status
 
 The package foundation is in progress. Platform paths and discovery behavior can evolve; the CLI must validate the installed agent's actual capabilities and avoid relying on a hard-coded assumption when detection is ambiguous.
+
+## License
+
+[MIT](LICENSE)
