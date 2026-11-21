@@ -191,3 +191,62 @@ test("CLI install command executes real install, preserves dry-run, and rejects 
 
   fs.rmSync(tmpProject, { recursive: true, force: true });
 });
+
+test("CLI install resolves bundled canonical skill for external projects so validate passes", async () => {
+  const tmpProject = fs.mkdtempSync(path.join(os.tmpdir(), "cli-ext-proj-"));
+
+  const initRes = await runCli(["init", "--project", tmpProject, "--output", "json"], {
+    stdout: () => {},
+    stderr: () => {},
+  });
+  assert.equal(initRes.exitCode, ExitCodes.SUCCESS);
+
+  const installRes = await runCli(
+    [
+      "install",
+      "--agent",
+      "codex",
+      "--scope",
+      "project",
+      "--project",
+      tmpProject,
+      "--output",
+      "json",
+    ],
+    { stdout: () => {}, stderr: () => {} },
+  );
+  assert.equal(installRes.exitCode, ExitCodes.SUCCESS);
+  assert.equal(
+    fs.existsSync(path.join(tmpProject, ".agents", "skills", "github-convention", "references")),
+    true,
+  );
+
+  const validateRes = await runCli(["validate", "--project", tmpProject, "--output", "json"], {
+    stdout: () => {},
+    stderr: () => {},
+  });
+  assert.equal(validateRes.exitCode, ExitCodes.SUCCESS);
+  assert.equal((validateRes.envelope.data as { valid: boolean }).valid, true);
+
+  fs.rmSync(tmpProject, { recursive: true, force: true });
+});
+
+test("installer: global-only install does not create .agents inside projectRoot", () => {
+  const tmpProject = fs.mkdtempSync(path.join(os.tmpdir(), "inst-glob-proj-"));
+  const tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "inst-glob-home-"));
+
+  const result = executeInstall({
+    targets: [{ agentId: "codex", scope: "global" }],
+    projectRoot: tmpProject,
+    homeDir: tmpHome,
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(fs.existsSync(path.join(tmpProject, ".agents")), false);
+  const globalSkill = path.join(tmpHome, ".agents", "skills", "github-convention");
+  assert.equal(fs.existsSync(path.join(globalSkill, "SKILL.md")), true);
+  assert.ok(loadManifest(globalSkill));
+
+  fs.rmSync(tmpProject, { recursive: true, force: true });
+  fs.rmSync(tmpHome, { recursive: true, force: true });
+});

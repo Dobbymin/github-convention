@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { getAdapter } from "@github-convention/agent-adapters";
 import {
   computeDirectoryManifest,
@@ -12,6 +13,40 @@ import type { InstallExecutionItem, InstallPlanOptions, InstallResult } from "./
 
 const SKILL_NAME = "github-convention";
 const DEFAULT_SKILL_VERSION = "0.1.0";
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const PACKAGE_REPO_ROOT = path.resolve(MODULE_DIR, "../../../..");
+const FALLBACK_SKILL_MD = `---
+name: ${SKILL_NAME}
+description: Deterministic GitHub workflow automation skill.
+---
+
+# ${SKILL_NAME}
+
+Canonical Project Skill source.
+`;
+
+export const resolveSkillSourceDir = (
+  projectRoot: string,
+  explicitSourceDir?: string,
+): string | null => {
+  if (explicitSourceDir && fs.existsSync(explicitSourceDir)) {
+    return explicitSourceDir;
+  }
+
+  const candidates = [
+    path.join(projectRoot, "skills", SKILL_NAME),
+    path.join(PACKAGE_REPO_ROOT, ".agents", "skills", SKILL_NAME),
+    path.join(PACKAGE_REPO_ROOT, "skills", SKILL_NAME),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+};
 
 export const copyDirectoryRecursive = (source: string, destination: string): void => {
   if (!fs.existsSync(destination)) {
@@ -38,27 +73,26 @@ export const executeInstall = (options: InstallPlanOptions): InstallResult => {
   const projectRoot = options.projectRoot ?? process.cwd();
   const homeDir = options.homeDir ?? os.homedir();
   const canonicalSkillDir = path.join(projectRoot, ".agents", "skills", SKILL_NAME);
+  const resolvedSourceDir = resolveSkillSourceDir(projectRoot, options.sourceSkillDir);
+  const needsProjectCanonical = options.targets.some(
+    (t) => t.scope === "project" || t.scope === "both",
+  );
 
-  const fallbackSourceDir = options.sourceSkillDir ?? path.join(projectRoot, "skills", SKILL_NAME);
-
-  // 1. Ensure canonical skill source exists
-  if (!fs.existsSync(canonicalSkillDir)) {
-    if (fs.existsSync(fallbackSourceDir)) {
+  // 1. Ensure canonical skill source exists in project only when project scope is requested
+  if (needsProjectCanonical && !fs.existsSync(canonicalSkillDir)) {
+    if (resolvedSourceDir) {
       if (!options.dryRun) {
-        copyDirectoryRecursive(fallbackSourceDir, canonicalSkillDir);
+        copyDirectoryRecursive(resolvedSourceDir, canonicalSkillDir);
       }
-    } else {
-      // Create minimal canonical skill skeleton if no template available
-      if (!options.dryRun) {
-        fs.mkdirSync(canonicalSkillDir, { recursive: true });
-        fs.writeFileSync(
-          path.join(canonicalSkillDir, "SKILL.md"),
-          `# ${SKILL_NAME}\n\nCanonical Project Skill source.\n`,
-          "utf-8",
-        );
-      }
+    } else if (!options.dryRun) {
+      fs.mkdirSync(canonicalSkillDir, { recursive: true });
+      fs.writeFileSync(path.join(canonicalSkillDir, "SKILL.md"), FALLBACK_SKILL_MD, "utf-8");
     }
   }
+
+  const effectiveCanonicalSourcePath = fs.existsSync(canonicalSkillDir)
+    ? canonicalSkillDir
+    : (resolvedSourceDir ?? canonicalSkillDir);
 
   const items: InstallExecutionItem[] = [];
 
@@ -153,7 +187,15 @@ export const executeInstall = (options: InstallPlanOptions): InstallResult => {
           if (fs.existsSync(targetSkillPath)) {
             fs.rmSync(targetSkillPath, { recursive: true, force: true });
           }
-          copyDirectoryRecursive(canonicalSkillDir, targetSkillPath);
+          const copySourceDir = fs.existsSync(canonicalSkillDir)
+            ? canonicalSkillDir
+            : resolvedSourceDir;
+          if (copySourceDir) {
+            copyDirectoryRecursive(copySourceDir, targetSkillPath);
+          } else {
+            fs.mkdirSync(targetSkillPath, { recursive: true });
+            fs.writeFileSync(path.join(targetSkillPath, "SKILL.md"), FALLBACK_SKILL_MD, "utf-8");
+          }
           installedType = "copy";
         }
 
@@ -168,7 +210,7 @@ export const executeInstall = (options: InstallPlanOptions): InstallResult => {
           scope,
           targetPath: targetSkillPath,
           installType: installedType,
-          canonicalSourcePath: canonicalSkillDir,
+          canonicalSourcePath: effectiveCanonicalSourcePath,
           files,
         };
 
@@ -201,7 +243,7 @@ export const executeInstall = (options: InstallPlanOptions): InstallResult => {
   const success = items.every((i) => i.status !== "failed");
 
   return {
-    canonicalSourcePath: canonicalSkillDir,
+    canonicalSourcePath: effectiveCanonicalSourcePath,
     items,
     success,
   };
