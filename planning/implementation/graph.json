@@ -220,7 +220,7 @@
       "contract_file": "nodes/n16-branch-pr-quality-and-secret-scan-gates.json",
       "priority": "P1",
       "hard_dependencies": ["N11", "N12", "N15"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": false
     },
     {
