@@ -50,6 +50,6 @@
   "undo_classification": "Retain worker artifacts/reports after failure; only clean verified owned files.",
   "approval_requirements": ["GitHub Issue approval before implementation"],
   "retry_policy": "Initial attempt plus at most 2 retries; identical failure escalates immediately.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N12 required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }

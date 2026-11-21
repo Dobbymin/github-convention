@@ -43,6 +43,6 @@
     "Explicit user approval before protection changes or rollback."
   ],
   "retry_policy": "Only classified transient retries; repeated failure halts and escalates.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N14 merge lifecycle and approved Issue required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }

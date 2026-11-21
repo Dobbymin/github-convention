@@ -45,6 +45,6 @@
     "Explicit user approval before mutating a real installation."
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; repeated integrity failure escalates without destructive retry.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N03, N06 and approved Issue required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }

@@ -45,6 +45,6 @@
     "Explicit approval before creating follow-up Issues."
   ],
   "retry_policy": "Initial attempt plus at most 2 retries; repeated identical remote mismatch escalates.",
-  "current_status": "blocked",
-  "blocking_reasons": ["N04 and N10 required."]
+  "current_status": "passed",
+  "blocking_reasons": []
 }
