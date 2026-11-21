@@ -100,7 +100,7 @@
       "contract_file": "nodes/n01-repository-and-package-foundation.json",
       "priority": "P0",
       "hard_dependencies": [],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": false
     },
     {
@@ -108,7 +108,7 @@
       "contract_file": "nodes/n02-cli-command-framework-and-output-contract.json",
       "priority": "P0",
       "hard_dependencies": ["N01"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": false
     },
     {

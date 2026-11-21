@@ -3,7 +3,28 @@
 import { assertCompatiblePackageMetadata } from "@github-convention/core";
 import cliPackage from "../package.json" with { type: "json" };
 import skillPackage from "../../skill/package.json" with { type: "json" };
+import { runCli } from "./runner.js";
+
+export * from "./options.js";
+export * from "./commands.js";
+export * from "./formatter.js";
+export * from "./runner.js";
 
 assertCompatiblePackageMetadata(cliPackage, skillPackage);
 
-console.log(`github-convention ${cliPackage.version}`);
+// If executed directly from CLI binary
+const isDirectExecution =
+  process.argv[1]?.endsWith("github-convention") ||
+  process.argv[1]?.endsWith("index.js") ||
+  process.argv[1]?.endsWith("index.ts");
+
+if (isDirectExecution) {
+  runCli(process.argv.slice(2))
+    .then(({ exitCode }) => {
+      process.exit(exitCode);
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+}

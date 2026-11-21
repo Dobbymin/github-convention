@@ -16,7 +16,7 @@
     "format:check": "prettier --check --ignore-path .prettierignore .",
     "lint": "eslint packages --max-warnings=0",
     "typecheck": "tsc -b tsconfig.build.json --pretty false",
-    "test": "npm run build && node --test packages/core/dist/compatibility.test.js",
+    "test": "npm run build && node --test \"packages/*/dist/**/*.test.js\"",
     "smoke": "npm run build && node packages/cli/dist/index.js",
     "audit": "npm audit --omit=dev --audit-level=high"
   },
