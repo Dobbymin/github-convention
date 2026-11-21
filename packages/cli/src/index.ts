@@ -8,6 +8,8 @@ import { runCli } from "./runner.js";
 export * from "./commands.js";
 export * from "./doctor/index.js";
 export * from "./formatter.js";
+export * from "./ignore/index.js";
+export * from "./init/index.js";
 export * from "./install/index.js";
 export * from "./options.js";
 export * from "./runner.js";

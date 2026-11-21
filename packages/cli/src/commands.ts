@@ -1,5 +1,6 @@
 import { ExitCodes, ErrorCodes, type OutputError } from "@github-convention/core";
 import { runDoctor } from "./doctor/index.js";
+import { executeInit } from "./init/index.js";
 import type { ParsedCliArgs } from "./options.js";
 import { executeUninstall } from "./uninstall/index.js";
 import { executeUpdate } from "./update/index.js";
@@ -200,26 +201,41 @@ export const COMMANDS: Record<string, CommandDefinition> = {
     name: "init",
     mutates: true,
     run(ctx) {
-      if (ctx.args.options.dryRun) {
+      try {
+        const result = executeInit({
+          projectRoot: ctx.args.options.project,
+          dryRun: ctx.args.options.dryRun,
+        });
+
         return {
           exitCode: ExitCodes.SUCCESS,
           status: "completed",
           data: {
-            dryRun: true,
             command: "init",
-            project: ctx.args.options.project ?? process.cwd(),
-            actions: ["preview_config_creation", "preview_skill_template"],
+            project: result.projectRoot,
+            dryRun: result.dryRun,
+            initialized: result.initialized,
+            cacheWritten: result.cacheWritten,
+            writtenFiles: result.writtenFiles,
+            actions: result.plan.actions,
+            ignoreEntriesToAdd: result.plan.ignorePlan.entriesToAdd,
+            discoveredFiles: result.plan.analysis.discoveredFiles,
+            conflicts: result.plan.analysis.conflicts,
           },
+          warnings: result.warnings,
+        };
+      } catch (err) {
+        return {
+          exitCode: ExitCodes.GENERAL_FAILURE,
+          status: "failed",
+          errors: [
+            {
+              code: ErrorCodes.OPERATION_FAILED,
+              message: err instanceof Error ? err.message : String(err),
+            },
+          ],
         };
       }
-      return {
-        exitCode: ExitCodes.SUCCESS,
-        status: "completed",
-        data: {
-          initialized: true,
-          project: ctx.args.options.project ?? process.cwd(),
-        },
-      };
     },
   },
 
