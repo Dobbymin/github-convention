@@ -3,7 +3,7 @@ import {
   ExitCodes,
   ErrorCodes,
   type OutputEnvelope,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import { parseCliArgs, type OutputFormat } from "./options.js";
 import { COMMANDS } from "./commands.js";
 import { formatOutput } from "./formatter.js";

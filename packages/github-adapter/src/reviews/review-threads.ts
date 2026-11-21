@@ -1,4 +1,4 @@
-import { redactSecrets } from "@github-convention/core";
+import { redactSecrets } from "@dobbymin/github-convention-core";
 import { defaultGhCommandRunner } from "../auth/gh-auth.js";
 import type { GhCommandRunner } from "../auth/types.js";
 

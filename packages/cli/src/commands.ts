@@ -1,5 +1,5 @@
-import { detectAllAgents } from "@github-convention/agent-adapters";
-import { ExitCodes, ErrorCodes, type OutputError } from "@github-convention/core";
+import { detectAllAgents } from "@dobbymin/github-convention-agent-adapters";
+import { ExitCodes, ErrorCodes, type OutputError } from "@dobbymin/github-convention-core";
 import { runDoctor } from "./doctor/index.js";
 import { executeInit } from "./init/index.js";
 import { executeInstall } from "./install/index.js";

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { assertCompatiblePackageMetadata } from "@github-convention/core";
+import { assertCompatiblePackageMetadata } from "@dobbymin/github-convention-core";
 import cliPackage from "../package.json" with { type: "json" };
-import skillPackage from "../../skill/package.json" with { type: "json" };
+import skillPackage from "@dobbymin/github-convention-skill/package.json" with { type: "json" };
 import { runCli } from "./runner.js";
 
 export * from "./commands.js";

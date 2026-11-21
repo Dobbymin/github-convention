@@ -8,7 +8,7 @@ import {
   type ParentIssueDraft,
   type PlanApprovalRecord,
   type SubIssueDraft,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import type { GhCommandRunner } from "../auth/types.js";
 import { addBlockedByDependency, linkSubIssue } from "../dependencies/dependency-links.js";
 import type { GitHubReadAdapter } from "../read/read-adapter.js";

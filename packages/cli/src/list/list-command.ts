@@ -6,8 +6,8 @@ import {
   getAllAdapters,
   type AgentId,
   type DetectionConfidence,
-} from "@github-convention/agent-adapters";
-import { loadManifest, type InstallType } from "@github-convention/core";
+} from "@dobbymin/github-convention-agent-adapters";
+import { loadManifest, type InstallType } from "@dobbymin/github-convention-core";
 
 const SKILL_NAME = "github-convention";
 

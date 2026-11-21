@@ -2,13 +2,13 @@
 
 ## 1. Optional packaging model
 
-Marketplace packaging in `@github-convention/agent-adapters` is strictly optional. The canonical `github-convention` Skill works directly through `.agents/skills/github-convention/` and the standard agent adapters (`docs/agent-adapters.md`) without requiring any marketplace bundle.
+Marketplace packaging in `@dobbymin/github-convention-agent-adapters` is strictly optional. The canonical `github-convention` Skill works directly through `.agents/skills/github-convention/` and the standard agent adapters (`docs/agent-adapters.md`) without requiring any marketplace bundle.
 
 Marketplace adapters exist only to stage format-specific metadata around the canonical Skill for external distribution channels when explicitly requested.
 
 ## 2. Single canonical source guarantee
 
-Every marketplace adapter reads `.agents/skills/github-convention/` as its single canonical source using `computeDirectoryManifest` from `@github-convention/core`:
+Every marketplace adapter reads `.agents/skills/github-convention/` as its single canonical source using `computeDirectoryManifest` from `@dobbymin/github-convention-core`:
 
 - Adapters **never** fork, rewrite, or maintain separate copies of `SKILL.md` or `references/*.md`.
 - Every staged bundle computes an aggregate `canonicalSourceSha256` digest across all sorted canonical file hashes and sizes.

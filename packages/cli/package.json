@@ -1,7 +1,6 @@
 {
-  "name": "@github-convention/cli",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@dobbymin/github-convention-cli",
+  "version": "0.1.1",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -22,8 +21,12 @@
     "supportedSkill": "^0.1.0"
   },
   "dependencies": {
-    "@github-convention/agent-adapters": "0.1.0",
-    "@github-convention/core": "0.1.0",
-    "@github-convention/github-adapter": "0.1.0"
+    "@dobbymin/github-convention-agent-adapters": "0.1.1",
+    "@dobbymin/github-convention-core": "0.1.1",
+    "@dobbymin/github-convention-github-adapter": "0.1.1",
+    "@dobbymin/github-convention-skill": "0.1.1"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

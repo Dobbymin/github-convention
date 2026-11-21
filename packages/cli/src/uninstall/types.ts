@@ -1,4 +1,4 @@
-import type { InstallManifest } from "@github-convention/core";
+import type { InstallManifest } from "@dobbymin/github-convention-core";
 
 export type UninstallAction = "remove" | "preserve_modified" | "missing" | "preserve_unowned";
 

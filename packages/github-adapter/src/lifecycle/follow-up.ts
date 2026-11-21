@@ -1,4 +1,4 @@
-import { redactSecrets } from "@github-convention/core";
+import { redactSecrets } from "@dobbymin/github-convention-core";
 import type { FailedTaskContext, FollowUpImpact, FollowUpIssueProposal } from "./types.js";
 
 const IMPACT_TO_PRIORITY: Record<FollowUpImpact, FollowUpIssueProposal["priority"]> = {

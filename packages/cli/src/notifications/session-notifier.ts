@@ -1,4 +1,7 @@
-import type { LifecycleNotificationEvent, SessionNotificationSink } from "@github-convention/core";
+import type {
+  LifecycleNotificationEvent,
+  SessionNotificationSink,
+} from "@dobbymin/github-convention-core";
 import type { OutputFormat } from "../options.js";
 
 const LEVEL_LABELS: Record<LifecycleNotificationEvent["severity"], string> = {

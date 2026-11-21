@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { atomicWriteFile, toPosixRelativePath } from "@github-convention/core";
+import { atomicWriteFile, toPosixRelativePath } from "@dobbymin/github-convention-core";
 
 export const REQUIRED_IGNORE_ENTRIES = [
   ".github-convention/cache/",

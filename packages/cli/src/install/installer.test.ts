@@ -8,7 +8,7 @@ import {
   ExitCodes,
   loadManifest,
   verifyManifestIntegrity,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import { runCli } from "../runner.js";
 import { executeInstall } from "./index.js";
 

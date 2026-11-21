@@ -8,7 +8,7 @@ import {
   getActiveStateDir,
   StateManager,
   type ExecutionState,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import { runCleanupArchives, runStateList, runStateRestore, runStateShow } from "./index.js";
 
 const makeCompleted = (runId: string): ExecutionState => ({

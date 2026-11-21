@@ -8,7 +8,7 @@ import {
   validateConfig,
   validateExecutionState,
   verifyManifestIntegrity,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import cliPackage from "../../package.json" with { type: "json" };
 import type { ValidateOptions, ValidateResult, ValidationCheckItem } from "./types.js";
 

@@ -8,7 +8,7 @@ import {
   loadManifest,
   saveManifest,
   type InstallManifest,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import { executeUninstall, planUninstall } from "./index.js";
 
 const SKILL = `---\nname: github-convention\ndescription: Test skill\n---\n\n# Skill\n`;

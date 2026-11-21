@@ -1,20 +1,22 @@
 import * as fs from "node:fs";
+import { createRequire } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getAdapter } from "@github-convention/agent-adapters";
+import { getAdapter } from "@dobbymin/github-convention-agent-adapters";
 import {
   computeDirectoryManifest,
   type InstallManifest,
   saveManifest,
   type SkillScope,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import type { InstallExecutionItem, InstallPlanOptions, InstallResult } from "./types.js";
 
 const SKILL_NAME = "github-convention";
-const DEFAULT_SKILL_VERSION = "0.1.0";
+const DEFAULT_SKILL_VERSION = "0.1.1";
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_REPO_ROOT = path.resolve(MODULE_DIR, "../../../..");
+const require = createRequire(import.meta.url);
 const FALLBACK_SKILL_MD = `---
 name: ${SKILL_NAME}
 description: Deterministic GitHub workflow automation skill.
@@ -33,8 +35,17 @@ export const resolveSkillSourceDir = (
     return explicitSourceDir;
   }
 
+  let bundledNpmSkillDir: string | null = null;
+  try {
+    const skillPkgJson = require.resolve("@dobbymin/github-convention-skill/package.json");
+    bundledNpmSkillDir = path.join(path.dirname(skillPkgJson), "skill");
+  } catch {
+    bundledNpmSkillDir = null;
+  }
+
   const candidates = [
     path.join(projectRoot, "skills", SKILL_NAME),
+    ...(bundledNpmSkillDir ? [bundledNpmSkillDir] : []),
     path.join(PACKAGE_REPO_ROOT, ".agents", "skills", SKILL_NAME),
     path.join(PACKAGE_REPO_ROOT, "skills", SKILL_NAME),
   ];

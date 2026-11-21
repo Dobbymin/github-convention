@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import test from "node:test";
-import { ErrorCodes, ExitCodes } from "@github-convention/core";
+import { ErrorCodes, ExitCodes } from "@dobbymin/github-convention-core";
 import { executeInstall } from "../install/index.js";
 import { runCli } from "../runner.js";
 import { runList } from "./index.js";
@@ -50,7 +50,7 @@ test("runList reports installed project skill and manifest metadata after instal
   assert.equal(listResult.agents.length, 1);
   assert.equal(listResult.installedCount, 1);
   assert.equal(listResult.agents[0]?.project.installed, true);
-  assert.equal(listResult.agents[0]?.project.skillVersion, "0.1.0");
+  assert.equal(listResult.agents[0]?.project.skillVersion, "0.1.1");
   assert.equal(listResult.agents[0]?.project.installType, "canonical");
 });
 

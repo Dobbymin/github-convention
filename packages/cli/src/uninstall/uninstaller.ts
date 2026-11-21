@@ -5,7 +5,7 @@ import {
   loadManifest,
   MANIFEST_FILENAME,
   type InstallManifest,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import { hashRegularFile, lstatOrNull, resolveInside } from "../update/fs-utils.js";
 import type { UninstallItem, UninstallOptions, UninstallPlan, UninstallResult } from "./types.js";
 

@@ -6,8 +6,8 @@ import {
   loadApprovalRecord,
   validateIssuePlan,
   type IssuePlan,
-} from "@github-convention/core";
-import { applyApprovedIssues, GitHubReadAdapter } from "@github-convention/github-adapter";
+} from "@dobbymin/github-convention-core";
+import { applyApprovedIssues, GitHubReadAdapter } from "@dobbymin/github-convention-github-adapter";
 import type {
   PlanApplyCommandResult,
   PlanApplyOptions,

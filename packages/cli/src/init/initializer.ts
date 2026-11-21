@@ -6,7 +6,7 @@ import {
   atomicWriteFile,
   stringifyYaml,
   type RepositoryAnalysis,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import { applyGitignorePlan, planGitignoreUpdates } from "../ignore/index.js";
 import type { InitOptions, InitPlan, InitResult, PlannedFileAction } from "./types.js";
 

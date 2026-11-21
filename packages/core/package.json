@@ -1,7 +1,6 @@
 {
-  "name": "@github-convention/core",
-  "version": "0.1.0",
-  "private": true,
+  "name": "@dobbymin/github-convention-core",
+  "version": "0.1.1",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -14,5 +13,8 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }

@@ -9,7 +9,7 @@ import {
   getActiveStateDir,
   StateManager,
   type ExecutionState,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import { runCli } from "../runner.js";
 import { runStatus } from "./index.js";
 

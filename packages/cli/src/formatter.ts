@@ -1,4 +1,4 @@
-import type { OutputEnvelope } from "@github-convention/core";
+import type { OutputEnvelope } from "@dobbymin/github-convention-core";
 import type { OutputFormat } from "./options.js";
 
 export function formatOutput(envelope: OutputEnvelope, format: OutputFormat): string {

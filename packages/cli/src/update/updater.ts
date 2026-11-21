@@ -10,7 +10,7 @@ import {
   type FileHashRecord,
   type InstallManifest,
   verifyManifestIntegrity,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import cliPackage from "../../package.json" with { type: "json" };
 import { hashRegularFile, lstatOrNull, resolveInside, safeRelativePath } from "./fs-utils.js";
 import type {

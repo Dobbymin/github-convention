@@ -6,7 +6,7 @@ import {
   computeDirectoryManifest,
   computeFileHash,
   type FileHashRecord,
-} from "@github-convention/core";
+} from "@dobbymin/github-convention-core";
 import type {
   MarketplaceCleanResult,
   MarketplaceFormatId,

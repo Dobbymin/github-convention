@@ -1,4 +1,4 @@
-import type { InstallManifest } from "@github-convention/core";
+import type { InstallManifest } from "@dobbymin/github-convention-core";
 
 export type FileDiffAction =
   "add" | "update" | "delete" | "preserve_modified" | "conflict" | "unchanged";

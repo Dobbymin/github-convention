@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { NotificationDispatcher, type LifecycleNotificationEvent } from "@github-convention/core";
+import {
+  NotificationDispatcher,
+  type LifecycleNotificationEvent,
+} from "@dobbymin/github-convention-core";
 import { createCliSessionNotifier, formatSessionNotification } from "./index.js";
 
 const sampleEvent: LifecycleNotificationEvent = {

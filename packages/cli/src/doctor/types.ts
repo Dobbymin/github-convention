@@ -2,8 +2,8 @@ import type {
   AgentCapabilities,
   AgentId,
   DetectionConfidence,
-} from "@github-convention/agent-adapters";
-import type { IntegrityCheckResult } from "@github-convention/core";
+} from "@dobbymin/github-convention-agent-adapters";
+import type { IntegrityCheckResult } from "@dobbymin/github-convention-core";
 
 export type DiagnosticLevel = "ok" | "warn" | "error";
 
