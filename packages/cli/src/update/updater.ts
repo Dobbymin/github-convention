@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import { createRequire } from "node:module";
 import * as os from "node:os";
 import * as path from "node:path";
 import { getAdapter, getAllAdapters } from "@dobbymin/github-convention-agent-adapters";
@@ -27,7 +28,21 @@ import type {
 } from "./types.js";
 
 const DEFAULT_SKILL_NAME = "github-convention";
-const DEFAULT_SKILL_VERSION = "0.1.0";
+const require = createRequire(import.meta.url);
+
+const resolveDefaultSkillVersion = (): string => {
+  try {
+    const pkg = require("@dobbymin/github-convention-skill/package.json") as {
+      version?: unknown;
+    };
+    if (typeof pkg.version === "string" && pkg.version.trim()) {
+      return pkg.version;
+    }
+  } catch {
+    // Fallback to CLI package version
+  }
+  return cliPackage.version;
+};
 
 const resolveSourceDir = (options: UpdateOptions, projectRoot: string): string => {
   if (options.sourceSkillDir) return options.sourceSkillDir;
@@ -163,7 +178,9 @@ const buildUpdatedManifest = (
     schemaVersion: 1,
     skillName: plan.currentManifest?.skillName ?? DEFAULT_SKILL_NAME,
     skillVersion:
-      readSourceVersion(sourceDir) ?? plan.currentManifest?.skillVersion ?? DEFAULT_SKILL_VERSION,
+      readSourceVersion(sourceDir) ??
+      plan.currentManifest?.skillVersion ??
+      resolveDefaultSkillVersion(),
     installedAt: new Date().toISOString(),
     agentId: plan.currentManifest?.agentId ?? "canonical",
     scope: plan.currentManifest?.scope ?? "project",

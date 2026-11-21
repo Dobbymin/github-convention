@@ -11,6 +11,7 @@ import {
   saveManifest,
   type SkillScope,
 } from "@dobbymin/github-convention-core";
+import cliPackage from "../../package.json" with { type: "json" };
 import type {
   InstallExecutionItem,
   InstallPlanOptions,
@@ -20,10 +21,23 @@ import type {
 } from "./types.js";
 
 const SKILL_NAME = "github-convention";
-const DEFAULT_SKILL_VERSION = "0.1.1";
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_REPO_ROOT = path.resolve(MODULE_DIR, "../../../..");
 const require = createRequire(import.meta.url);
+
+const resolveSkillPackageVersion = (): string => {
+  try {
+    const pkg = require("@dobbymin/github-convention-skill/package.json") as {
+      version?: unknown;
+    };
+    if (typeof pkg.version === "string" && pkg.version.trim()) {
+      return pkg.version;
+    }
+  } catch {
+    // Fallback to CLI package version when skill package is unavailable
+  }
+  return cliPackage.version;
+};
 export const FALLBACK_SKILL_MD = `---
 name: ${SKILL_NAME}
 description: Deterministic GitHub workflow automation skill.
@@ -136,7 +150,7 @@ export const executeInstall = (options: InstallPlanOptions): InstallResult => {
           const manifest: InstallManifest = {
             schemaVersion: 1,
             skillName: SKILL_NAME,
-            skillVersion: DEFAULT_SKILL_VERSION,
+            skillVersion: resolveSkillPackageVersion(),
             installedAt: new Date().toISOString(),
             agentId: target.agentId,
             scope,
@@ -222,7 +236,7 @@ export const executeInstall = (options: InstallPlanOptions): InstallResult => {
         const manifest: InstallManifest = {
           schemaVersion: 1,
           skillName: SKILL_NAME,
-          skillVersion: DEFAULT_SKILL_VERSION,
+          skillVersion: resolveSkillPackageVersion(),
           installedAt: new Date().toISOString(),
           agentId: target.agentId,
           scope,
