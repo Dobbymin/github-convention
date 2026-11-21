@@ -1,6 +1,8 @@
 import { ExitCodes, ErrorCodes, type OutputError } from "@github-convention/core";
 import { runDoctor } from "./doctor/index.js";
 import type { ParsedCliArgs } from "./options.js";
+import { executeUninstall } from "./uninstall/index.js";
+import { executeUpdate } from "./update/index.js";
 import { runValidate } from "./validate/index.js";
 
 export interface CommandContext {
@@ -57,24 +59,58 @@ export const COMMANDS: Record<string, CommandDefinition> = {
     name: "update",
     mutates: true,
     run(ctx) {
-      if (ctx.args.options.dryRun) {
+      try {
+        const result = executeUpdate({
+          projectRoot: ctx.args.options.project,
+          dryRun: ctx.args.options.dryRun,
+        });
+
+        if (!result.success) {
+          const conflict = result.plan.conflicts.length > 0;
+          return {
+            exitCode: conflict ? ExitCodes.INTEGRITY_CONFLICT : ExitCodes.GENERAL_FAILURE,
+            status: "failed",
+            data: {
+              targetDir: result.targetDir,
+              dryRun: result.dryRun,
+              rolledBack: result.rolledBack ?? false,
+              summary: result.plan.summary,
+              conflicts: result.plan.conflicts,
+            },
+            errors: [
+              {
+                code: conflict ? ErrorCodes.MERGE_CONFLICT : ErrorCodes.OPERATION_FAILED,
+                message: result.error ?? "Update failed.",
+              },
+            ],
+          };
+        }
+
         return {
           exitCode: ExitCodes.SUCCESS,
           status: "completed",
           data: {
-            dryRun: true,
-            command: "update",
-            actions: ["check_updates", "verify_integrity", "preview_changes"],
+            targetDir: result.targetDir,
+            dryRun: result.dryRun,
+            symlink: result.plan.isSymlink,
+            summary: result.plan.summary,
+            files: result.plan.files,
           },
         };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const incompatible = message.includes("not compatible");
+        return {
+          exitCode: incompatible ? ExitCodes.INTEGRITY_CONFLICT : ExitCodes.GENERAL_FAILURE,
+          status: "failed",
+          errors: [
+            {
+              code: incompatible ? ErrorCodes.VERSION_INCOMPATIBLE : ErrorCodes.OPERATION_FAILED,
+              message,
+            },
+          ],
+        };
       }
-      return {
-        exitCode: ExitCodes.SUCCESS,
-        status: "completed",
-        data: {
-          updated: true,
-        },
-      };
     },
   },
 
@@ -82,23 +118,46 @@ export const COMMANDS: Record<string, CommandDefinition> = {
     name: "uninstall",
     mutates: true,
     run(ctx) {
-      if (ctx.args.options.dryRun) {
+      const result = executeUninstall({
+        projectRoot: ctx.args.options.project,
+        dryRun: ctx.args.options.dryRun,
+      });
+
+      if (!result.success) {
         return {
-          exitCode: ExitCodes.SUCCESS,
-          status: "completed",
+          exitCode: ExitCodes.GENERAL_FAILURE,
+          status: "failed",
           data: {
-            dryRun: true,
-            command: "uninstall",
-            actions: ["inspect_cli_managed_files", "preview_removal"],
+            targetDir: result.targetDir,
+            retainedPath: result.retainedPath,
           },
+          errors: [
+            {
+              code: ErrorCodes.OPERATION_FAILED,
+              message: result.error ?? "Uninstall failed.",
+            },
+          ],
         };
       }
+
+      const preserved = result.plan.items.filter(
+        (item) => item.action === "preserve_modified" || item.action === "preserve_unowned",
+      );
+
       return {
         exitCode: ExitCodes.SUCCESS,
         status: "completed",
         data: {
-          uninstalled: true,
+          targetDir: result.targetDir,
+          dryRun: result.dryRun,
+          kind: result.plan.kind,
+          summary: result.plan.summary,
+          items: result.plan.items,
+          manifestRemoved: result.manifestRemoved,
+          directoryRemoved: result.directoryRemoved,
+          ...(result.retainedPath !== undefined ? { retainedPath: result.retainedPath } : {}),
         },
+        warnings: preserved.map((item) => `[${item.action}] ${item.relativePath}: ${item.reason}`),
       };
     },
   },

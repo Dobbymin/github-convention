@@ -156,7 +156,7 @@
       "contract_file": "nodes/n08-safe-update-uninstall-and-integrity-lifecycle.json",
       "priority": "P0",
       "hard_dependencies": ["N03", "N06"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": true
     },
     {
