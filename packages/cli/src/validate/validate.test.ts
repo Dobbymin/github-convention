@@ -3,7 +3,14 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, it } from "node:test";
-import { saveManifest, type InstallManifest } from "@dobbymin/github-convention-core";
+import {
+  saveManifest,
+  StateManager,
+  type ExecutionState,
+  type InstallManifest,
+} from "@dobbymin/github-convention-core";
+import { executeInit } from "../init/index.js";
+import { executeInstall } from "../install/index.js";
 import { runCli } from "../runner.js";
 import { runValidate } from "./validator.js";
 
@@ -154,5 +161,56 @@ describe("Validate Diagnostic System", () => {
     assert.equal(res.envelope.status, "completed");
     const data = res.envelope.data as Record<string, unknown>;
     assert.equal(data.valid, true);
+  });
+
+  it("recognizes init config, validates state/active/*.json, and detects tampered agent copies", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "val-integ-"));
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "val-integ-home-"));
+    try {
+      executeInit({ projectRoot: tempDir });
+
+      const activeDir = path.join(tempDir, ".github-convention", "state", "active");
+      fs.mkdirSync(activeDir, { recursive: true });
+      const manager = new StateManager({ stateDir: activeDir, role: "orchestrator" });
+      const sampleState: ExecutionState = {
+        schemaVersion: 1,
+        runId: "run-val-1",
+        status: "planned",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        repository: { root: tempDir, owner: "Dobbymin", name: "demo", defaultBranch: "main" },
+        approvals: [],
+        tasks: [],
+      };
+      manager.save(sampleState);
+
+      const cleanRes = runValidate({ projectRoot: tempDir, homeDir: tempHome });
+      assert.equal(cleanRes.valid, true);
+      assert.ok(cleanRes.checks.some((c) => c.id === "config.schema" && c.status === "pass"));
+      assert.ok(cleanRes.checks.some((c) => c.id === "state.validation" && c.status === "pass"));
+
+      // Tamper with installed claude-code copy
+      executeInstall({
+        targets: [{ agentId: "claude-code", scope: "project" }],
+        projectRoot: tempDir,
+        homeDir: tempHome,
+        forceCopy: true,
+      });
+      const claudeSkillMd = path.join(
+        tempDir,
+        ".claude",
+        "skills",
+        "github-convention",
+        "SKILL.md",
+      );
+      fs.appendFileSync(claudeSkillMd, "\n<!-- tampered -->\n", "utf-8");
+
+      const tamperedRes = runValidate({ projectRoot: tempDir, homeDir: tempHome });
+      assert.equal(tamperedRes.valid, false);
+      assert.ok(tamperedRes.errors.some((e) => e.includes("claude-code(project)")));
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      fs.rmSync(tempHome, { recursive: true, force: true });
+    }
   });
 });

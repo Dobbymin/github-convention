@@ -1,40 +1,67 @@
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import {
   isCompatibleVersion,
   loadConfigFile,
   loadManifest,
   parseYaml,
+  resolveConfig,
   validateConfig,
   validateExecutionState,
   verifyManifestIntegrity,
 } from "@dobbymin/github-convention-core";
 import cliPackage from "../../package.json" with { type: "json" };
+import {
+  findGlobalConfigFile,
+  findProjectConfigFile,
+  probeConventionConflicts,
+} from "../doctor/probes.js";
+import { runList } from "../list/index.js";
 import type { ValidateOptions, ValidateResult, ValidationCheckItem } from "./types.js";
+
+const collectRunStatePaths = (projectRoot: string): string[] => {
+  const candidates: string[] = [];
+  const stateDirs = [
+    path.join(projectRoot, ".github-convention", "state", "active"),
+    path.join(projectRoot, ".github-convention", "state", "archive"),
+  ];
+
+  for (const dir of stateDirs) {
+    if (!fs.existsSync(dir)) continue;
+    for (const entry of fs.readdirSync(dir)) {
+      if (
+        !entry.endsWith(".json") ||
+        entry.endsWith(".lock.json") ||
+        entry === "plan.json" ||
+        entry.startsWith("approvals-")
+      ) {
+        continue;
+      }
+      candidates.push(path.join(dir, entry));
+    }
+  }
+
+  const legacyState = path.join(projectRoot, ".github-convention", "state.json");
+  if (fs.existsSync(legacyState)) {
+    candidates.push(legacyState);
+  }
+
+  return candidates;
+};
 
 export function runValidate(options: ValidateOptions = {}): ValidateResult {
   const projectRoot = options.projectRoot || process.cwd();
+  const homeDir = options.homeDir || os.homedir();
   const checks: ValidationCheckItem[] = [];
   const errors: string[] = [];
   const warnings: string[] = [];
 
   // 1. Config Validation
-  let configPath: string | undefined = options.configPath;
-  let explicitConfigSpecified = Boolean(options.configPath);
-
-  if (!configPath) {
-    const candidates = [
-      path.join(projectRoot, ".github-convention.yaml"),
-      path.join(projectRoot, ".github-convention.yml"),
-      path.join(projectRoot, ".github-convention.json"),
-    ];
-    for (const c of candidates) {
-      if (fs.existsSync(c)) {
-        configPath = c;
-        break;
-      }
-    }
-  }
+  const explicitConfigSpecified = Boolean(options.configPath);
+  const configPath: string | undefined =
+    options.configPath ?? findProjectConfigFile(projectRoot) ?? undefined;
+  const globalConfigPath = findGlobalConfigFile(homeDir) ?? undefined;
 
   if (explicitConfigSpecified && (!configPath || !fs.existsSync(configPath))) {
     checks.push({
@@ -44,7 +71,7 @@ export function runValidate(options: ValidateOptions = {}): ValidateResult {
       message: `Specified configuration file does not exist: ${configPath}`,
     });
     errors.push(`Specified configuration file does not exist: ${configPath}`);
-  } else if (!configPath || !fs.existsSync(configPath)) {
+  } else if ((!configPath || !fs.existsSync(configPath)) && !globalConfigPath) {
     checks.push({
       id: "config.exists",
       name: "Configuration file existence",
@@ -53,22 +80,46 @@ export function runValidate(options: ValidateOptions = {}): ValidateResult {
     });
   } else {
     try {
-      const parsed = loadConfigFile(configPath);
-      const validation = validateConfig(parsed);
+      const validationErrors: Array<{ path: string; message: string }> = [];
+      const validationWarnings: Array<{ path: string; message: string }> = [];
 
-      if (validation.valid) {
+      if (configPath && fs.existsSync(configPath)) {
+        const parsed = loadConfigFile(configPath);
+        const validation = validateConfig(parsed);
+        validationErrors.push(...validation.errors);
+        validationWarnings.push(...validation.warnings);
+      }
+
+      if (validationErrors.length === 0) {
+        const resolved = resolveConfig({
+          ...(globalConfigPath ? { globalConfigPath } : {}),
+          ...(configPath && fs.existsSync(configPath) ? { projectConfigPath: configPath } : {}),
+        });
+        for (const w of resolved.warnings) {
+          if (
+            !validationWarnings.some(
+              (existing) => existing.path === w.path && existing.message === w.message,
+            )
+          ) {
+            validationWarnings.push(w);
+          }
+        }
+      }
+
+      const displayPath = configPath ?? globalConfigPath;
+      if (validationErrors.length === 0) {
         checks.push({
           id: "config.schema",
           name: "Configuration schema and safety validation",
-          status: validation.warnings.length > 0 ? "warn" : "pass",
-          message: `Configuration at '${configPath}' is valid.${
-            validation.warnings.length > 0 ? ` (${validation.warnings.length} warning(s))` : ""
+          status: validationWarnings.length > 0 ? "warn" : "pass",
+          message: `Configuration at '${displayPath}' is valid.${
+            validationWarnings.length > 0 ? ` (${validationWarnings.length} warning(s))` : ""
           }`,
           details: {
-            warnings: validation.warnings,
+            warnings: validationWarnings,
           },
         });
-        for (const w of validation.warnings) {
+        for (const w of validationWarnings) {
           warnings.push(`[${w.path}] ${w.message}`);
         }
       } else {
@@ -76,13 +127,13 @@ export function runValidate(options: ValidateOptions = {}): ValidateResult {
           id: "config.schema",
           name: "Configuration schema and safety validation",
           status: "fail",
-          message: `Configuration at '${configPath}' failed validation with ${validation.errors.length} error(s).`,
+          message: `Configuration at '${displayPath}' failed validation with ${validationErrors.length} error(s).`,
           details: {
-            errors: validation.errors,
-            warnings: validation.warnings,
+            errors: validationErrors,
+            warnings: validationWarnings,
           },
         });
-        for (const e of validation.errors) {
+        for (const e of validationErrors) {
           errors.push(`[${e.path}] ${e.message}`);
         }
       }
@@ -196,46 +247,71 @@ export function runValidate(options: ValidateOptions = {}): ValidateResult {
         });
       }
     }
+  }
 
-    // 3. Manifest Integrity Check
-    const manifest = loadManifest(skillDir);
-    if (manifest) {
-      const integrity = verifyManifestIntegrity(skillDir, manifest);
-      if (integrity.valid) {
-        checks.push({
-          id: "skill.integrity",
-          name: "Skill installation integrity",
-          status: "pass",
-          message: `All ${manifest.files.length} managed skill files match SHA-256 integrity manifest.`,
-        });
-      } else {
-        const details = [
-          ...integrity.modifiedFiles.map((f) => `modified: ${f}`),
-          ...integrity.missingFiles.map((f) => `missing: ${f}`),
-          ...integrity.unexpectedFiles.map((f) => `unexpected: ${f}`),
-        ].join(", ");
-        checks.push({
-          id: "skill.integrity",
-          name: "Skill installation integrity",
-          status: "fail",
-          message: `Skill installation integrity violation: ${details}`,
-          details: { integrity },
-        });
-        errors.push(`Skill installation integrity violation: ${details}`);
-      }
+  // 3. Manifest Integrity Check (canonical + all installed agent targets)
+  const seenTargets = new Set<string>();
+  const targetsToCheck: Array<{ label: string; dir: string }> = [];
+
+  const addTarget = (label: string, dir: string): void => {
+    const resolved = path.resolve(dir);
+    if (seenTargets.has(resolved) || !fs.existsSync(resolved)) return;
+    try {
+      if (fs.lstatSync(resolved).isSymbolicLink()) return;
+    } catch {
+      return;
+    }
+    seenTargets.add(resolved);
+    targetsToCheck.push({ label, dir: resolved });
+  };
+
+  addTarget("canonical", skillDir);
+  const listResult = runList({ projectRoot, homeDir });
+  for (const agent of listResult.agents) {
+    if (agent.project.installed && !agent.project.symlink) {
+      addTarget(`${agent.agentId}(project)`, agent.project.path);
+    }
+    if (agent.global.installed && !agent.global.symlink) {
+      addTarget(`${agent.agentId}(global)`, agent.global.path);
     }
   }
 
-  // 4. Execution State Validation (if present)
-  let statePath = options.statePath;
-  if (!statePath) {
-    const candidateState = path.join(projectRoot, ".github-convention", "state.json");
-    if (fs.existsSync(candidateState)) {
-      statePath = candidateState;
+  for (const target of targetsToCheck) {
+    const manifest = loadManifest(target.dir);
+    if (!manifest) continue;
+    const integrity = verifyManifestIntegrity(target.dir, manifest);
+    if (integrity.valid) {
+      checks.push({
+        id: "skill.integrity",
+        name: `Skill installation integrity (${target.label})`,
+        status: "pass",
+        message: `All ${manifest.files.length} managed skill files at ${target.label} match SHA-256 integrity manifest.`,
+      });
+    } else {
+      const details = [
+        ...integrity.modifiedFiles.map((f) => `modified: ${f}`),
+        ...integrity.missingFiles.map((f) => `missing: ${f}`),
+        ...integrity.unexpectedFiles.map((f) => `unexpected: ${f}`),
+      ].join(", ");
+      checks.push({
+        id: "skill.integrity",
+        name: `Skill installation integrity (${target.label})`,
+        status: "fail",
+        message: `Skill installation integrity violation at ${target.label}: ${details}`,
+        details: { integrity, target: target.dir },
+      });
+      errors.push(`Skill installation integrity violation (${target.label}): ${details}`);
     }
   }
 
-  if (statePath && fs.existsSync(statePath)) {
+  // 4. Execution State Validation (all active/archive/legacy state files if present)
+  const statePaths = options.statePath
+    ? fs.existsSync(options.statePath)
+      ? [options.statePath]
+      : []
+    : collectRunStatePaths(projectRoot);
+
+  for (const statePath of statePaths) {
     try {
       const rawState = JSON.parse(fs.readFileSync(statePath, "utf-8"));
       const stateValidation = validateExecutionState(rawState);
@@ -254,16 +330,18 @@ export function runValidate(options: ValidateOptions = {}): ValidateResult {
           message: `Execution state at '${statePath}' is corrupted: ${stateValidation.errors.join("; ")}`,
           details: { errors: stateValidation.errors },
         });
-        errors.push(`Execution state corrupted: ${stateValidation.errors.join("; ")}`);
+        errors.push(
+          `Execution state corrupted (${statePath}): ${stateValidation.errors.join("; ")}`,
+        );
       }
     } catch (err) {
       checks.push({
         id: "state.validation",
         name: "Execution state validation",
         status: "fail",
-        message: `Execution state file could not be parsed: ${err instanceof Error ? err.message : String(err)}`,
+        message: `Execution state file '${statePath}' could not be parsed: ${err instanceof Error ? err.message : String(err)}`,
       });
-      errors.push("Execution state file could not be parsed.");
+      errors.push(`Execution state file '${statePath}' could not be parsed.`);
     }
   }
 
@@ -297,6 +375,31 @@ export function runValidate(options: ValidateOptions = {}): ValidateResult {
         message: `Could not read conventions directory: ${err instanceof Error ? err.message : String(err)}`,
       });
     }
+  }
+
+  // 6. Unresolved Convention Conflicts Check
+  const unresolvedConflicts = probeConventionConflicts(projectRoot);
+  if (unresolvedConflicts.length > 0) {
+    const summary = unresolvedConflicts
+      .map(
+        (c) => `${c.topic}: ${c.sources.map((s) => `${s.relativePath}=${s.value}`).join(" vs ")}`,
+      )
+      .join("; ");
+    checks.push({
+      id: "conventions.conflicts",
+      name: "Repository convention conflicts",
+      status: "warn",
+      message: `Unresolved convention conflict(s) detected: ${summary}`,
+      details: { conflicts: unresolvedConflicts },
+    });
+    warnings.push(`Unresolved convention conflict(s): ${summary}`);
+  } else {
+    checks.push({
+      id: "conventions.conflicts",
+      name: "Repository convention conflicts",
+      status: "pass",
+      message: "No unresolved convention conflicts detected.",
+    });
   }
 
   const valid = !checks.some((c) => c.status === "fail");

@@ -10,6 +10,7 @@ export interface ValidationCheckItem {
 
 export interface ValidateOptions {
   projectRoot?: string;
+  homeDir?: string;
   configPath?: string;
   skillDir?: string;
   statePath?: string;
