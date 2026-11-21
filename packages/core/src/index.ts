@@ -10,4 +10,6 @@ export * from "./manifest/index.js";
 export * from "./output/index.js";
 export * from "./plan/index.js";
 export * from "./recovery/index.js";
+export * from "./scheduler/index.js";
 export * from "./state/index.js";
+export * from "./workspace/index.js";
