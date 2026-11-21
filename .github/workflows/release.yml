@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run verification and artifact staging without publishing"
+        required: true
+        type: boolean
+        default: true
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: node --test scripts/release/release.test.mjs
+      - run: node scripts/release/build-artifacts.mjs --out dist-release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts-${{ matrix.os }}
+          path: dist-release/
+          if-no-files-found: error
+
+  publish:
+    needs: verify-and-package
+    runs-on: ubuntu-latest
+    # Protected GitHub environment "release" enforces explicit human approval before any publish.
+    environment: release
+    if: github.event_name == 'push' || inputs.dry_run == false
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts-ubuntu-latest
+          path: dist-release
+      - name: Verify staged checksums
+        working-directory: dist-release
+        run: sha256sum -c SHA256SUMS.txt
+      - name: Manual release publish gate
+        run: |
+          echo "Approved release environment gate passed."
+          echo "Publish npm packages and create GitHub Release with dist-release/* after removing private:true in release prep."

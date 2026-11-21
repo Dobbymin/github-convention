@@ -3,6 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": "https://github.com/Dobbymin/github-convention",
+  "homepage": "https://github.com/Dobbymin/github-convention#readme",
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "package.json"
+  ],
   "githubConvention": {
     "compatibleCli": "^0.1.0"
   }
