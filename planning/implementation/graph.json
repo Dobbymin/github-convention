@@ -244,7 +244,7 @@
       "contract_file": "nodes/n19-release-proposal-and-approval-gate.json",
       "priority": "P2",
       "hard_dependencies": ["N09", "N16"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": true
     },
     {
