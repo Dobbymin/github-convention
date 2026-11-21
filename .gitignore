@@ -1,1 +1,5 @@
 .harness/state/active/
+node_modules/
+**/dist/
+
+_workspace/

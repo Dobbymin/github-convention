@@ -16,15 +16,22 @@
     "npm workspace and package layout",
     "CLI/Skill version and compatibility metadata",
     "format/lint/typecheck/test/build scripts",
+    "Commit-time format, lint, and typecheck Git hook",
+    "npm prepare hook registration for fresh clones",
     "macOS/Linux/Windows CI baseline"
   ],
   "hard_dependencies": [],
   "soft_dependencies": [],
   "allowed_files": [
+    ".gitignore",
+    ".prettierignore",
     "package.json",
     "package-lock.json",
     "tsconfig*.json",
     "packages/**",
+    "scripts/**",
+    "eslint.config.mjs",
+    ".githooks/**",
     ".github/workflows/**",
     "README.md",
     "LICENSE",
@@ -39,6 +46,7 @@
   "verification_commands": [
     "npm ci",
     "npm run build",
+    "npm run format:check",
     "npm run lint",
     "npm run typecheck",
     "npm test"
