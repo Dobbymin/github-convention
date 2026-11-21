@@ -3,6 +3,7 @@ import { runDoctor } from "./doctor/index.js";
 import { executeInit } from "./init/index.js";
 import type { ParsedCliArgs } from "./options.js";
 import { runPlanApply, runPlanValidate } from "./plan/index.js";
+import { runCleanupArchives, runStateList, runStateRestore, runStateShow } from "./state/index.js";
 import { executeUninstall } from "./uninstall/index.js";
 import { executeUpdate } from "./update/index.js";
 import { runValidate } from "./validate/index.js";
@@ -290,6 +291,10 @@ export const COMMANDS: Record<string, CommandDefinition> = {
     name: "cleanup",
     mutates: true,
     run(ctx) {
+      const result = runCleanupArchives({
+        projectRoot: ctx.args.options.project,
+        dryRun: ctx.args.options.dryRun,
+      });
       if (ctx.args.options.dryRun) {
         return {
           exitCode: ExitCodes.SUCCESS,
@@ -298,6 +303,8 @@ export const COMMANDS: Record<string, CommandDefinition> = {
             dryRun: true,
             command: "cleanup",
             actions: ["scan_expired_archives", "scan_temp_artifacts"],
+            deletedRunIds: result.deletedRunIds,
+            retainedRunIds: result.retainedRunIds,
           },
         };
       }
@@ -306,6 +313,8 @@ export const COMMANDS: Record<string, CommandDefinition> = {
         status: "completed",
         data: {
           cleaned: true,
+          deletedRunIds: result.deletedRunIds,
+          retainedRunIds: result.retainedRunIds,
         },
       };
     },
@@ -456,29 +465,41 @@ export const COMMANDS: Record<string, CommandDefinition> = {
       }
 
       if (sub === "list") {
+        const states = runStateList({ projectRoot: ctx.args.options.project });
         return {
           exitCode: ExitCodes.SUCCESS,
           status: "completed",
           data: {
             subcommand: "list",
-            states: [],
+            states,
           },
         };
       }
 
       if (sub === "show") {
+        const runId = ctx.args.positionals[0];
+        const shown = runStateShow({
+          projectRoot: ctx.args.options.project,
+          ...(runId !== undefined ? { runId } : {}),
+        });
         return {
           exitCode: ExitCodes.SUCCESS,
           status: "completed",
           data: {
             subcommand: "show",
-            state: null,
+            state: shown?.state ?? null,
           },
         };
       }
 
       if (sub === "restore") {
+        const runId = ctx.args.positionals[0];
         if (ctx.args.options.dryRun) {
+          const preview = runStateRestore({
+            projectRoot: ctx.args.options.project,
+            ...(runId !== undefined ? { runId } : {}),
+            dryRun: true,
+          });
           return {
             exitCode: ExitCodes.SUCCESS,
             status: "completed",
@@ -486,15 +507,22 @@ export const COMMANDS: Record<string, CommandDefinition> = {
               dryRun: true,
               command: "state restore",
               actions: ["inspect_archive_state", "preview_restore"],
+              ...(preview !== null ? { preview } : {}),
             },
           };
         }
 
+        const restored = runStateRestore({
+          projectRoot: ctx.args.options.project,
+          ...(runId !== undefined ? { runId } : {}),
+          dryRun: false,
+        });
         return {
           exitCode: ExitCodes.SUCCESS,
           status: "completed",
           data: {
-            restored: true,
+            restored: restored?.moved ?? true,
+            ...(restored !== null ? { result: restored } : {}),
           },
         };
       }

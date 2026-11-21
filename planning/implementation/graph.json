@@ -196,7 +196,7 @@
       "contract_file": "nodes/n13-issue-lifecycle-reconciliation-and-recovery-archive.json",
       "priority": "P1",
       "hard_dependencies": ["N04", "N12"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": false
     },
     {
