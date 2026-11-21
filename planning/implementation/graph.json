@@ -148,7 +148,7 @@
       "contract_file": "nodes/n07-read-only-diagnostics-and-validation.json",
       "priority": "P0",
       "hard_dependencies": ["N02", "N03", "N05", "N06"],
-      "status": "blocked",
+      "status": "passed",
       "parallel_execution_eligible": true
     },
     {
