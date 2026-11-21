@@ -67,7 +67,6 @@ export const resolveSkillSourceDir = (
   const candidates = [
     path.join(projectRoot, "skills", SKILL_NAME),
     ...(bundledNpmSkillDir ? [bundledNpmSkillDir] : []),
-    path.join(PACKAGE_REPO_ROOT, ".agents", "skills", SKILL_NAME),
     path.join(PACKAGE_REPO_ROOT, "skills", SKILL_NAME),
   ];
 

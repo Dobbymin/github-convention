@@ -14,9 +14,19 @@ import {
 } from "../index.js";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../../../..");
-const CANONICAL_SKILL_DIR = path.normalize(
-  path.join(REPO_ROOT, ".agents", "skills", "github-convention"),
-);
+const AUTHORING_SKILL_DIR = path.normalize(path.join(REPO_ROOT, "skills", "github-convention"));
+
+const createFixtureProject = (
+  tmpDir: string,
+): { projectDir: string; canonicalSkillDir: string } => {
+  const projectDir = path.normalize(path.join(tmpDir, "fixture-project"));
+  const canonicalSkillDir = path.normalize(
+    path.join(projectDir, ".agents", "skills", "github-convention"),
+  );
+  fs.mkdirSync(path.dirname(canonicalSkillDir), { recursive: true });
+  fs.cpSync(AUTHORING_SKILL_DIR, canonicalSkillDir, { recursive: true });
+  return { projectDir, canonicalSkillDir };
+};
 
 const withTempDir = (fn: (tmpDir: string) => void): void => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "ghc-marketplace-test-"));
@@ -49,18 +59,19 @@ test("marketplace registry: exposes only verified optional formats", () => {
 
 test("dry-run and planPackage: produce canonical manifest and digest with zero filesystem mutations", () => {
   withTempDir((tmpDir) => {
+    const { projectDir, canonicalSkillDir } = createFixtureProject(tmpDir);
     const nonExistentOutDir = path.normalize(path.join(tmpDir, "never-created-out"));
-    const canonicalExpected = computeDirectoryManifest(CANONICAL_SKILL_DIR);
+    const canonicalExpected = computeDirectoryManifest(canonicalSkillDir);
     const expectedAggregateSha = computeAggregateCanonicalSha256(canonicalExpected);
 
     for (const adapter of listMarketplaceAdapters()) {
       const plan = adapter.planPackage({
-        projectDir: REPO_ROOT,
+        projectDir,
         outDir: nonExistentOutDir,
       });
 
       assert.equal(plan.dryRun, true);
-      assert.equal(path.normalize(plan.canonicalSourceDir), CANONICAL_SKILL_DIR);
+      assert.equal(path.normalize(plan.canonicalSourceDir), canonicalSkillDir);
       assert.equal(plan.canonicalSourceSha256, expectedAggregateSha);
       assert.deepEqual(plan.canonicalFiles, canonicalExpected);
       assert.ok(plan.plannedFiles.some((f) => f.role === "adapter-metadata"));
@@ -71,7 +82,7 @@ test("dry-run and planPackage: produce canonical manifest and digest with zero f
       );
 
       const dryResult = adapter.packageForMarketplace({
-        projectDir: REPO_ROOT,
+        projectDir,
         outDir: nonExistentOutDir,
         dryRun: true,
       });
@@ -86,14 +97,15 @@ test("dry-run and planPackage: produce canonical manifest and digest with zero f
 
 test("staged packaging: writes adapter bundle with zero canonical Skill fork", () => {
   withTempDir((tmpDir) => {
-    const canonicalExpected = computeDirectoryManifest(CANONICAL_SKILL_DIR);
+    const { projectDir, canonicalSkillDir } = createFixtureProject(tmpDir);
+    const canonicalExpected = computeDirectoryManifest(canonicalSkillDir);
     const expectedAggregateSha = computeAggregateCanonicalSha256(canonicalExpected);
 
     // 1. claude-plugin
     const claudeOut = path.normalize(path.join(tmpDir, "claude-plugin-stage"));
     const claudeAdapter = getMarketplaceAdapter("claude-plugin");
     const claudeResult = claudeAdapter.packageForMarketplace({
-      projectDir: REPO_ROOT,
+      projectDir,
       outDir: claudeOut,
       version: "0.2.0",
     });
@@ -122,7 +134,7 @@ test("staged packaging: writes adapter bundle with zero canonical Skill fork", (
     const bundleOut = path.normalize(path.join(tmpDir, "agents-bundle-stage"));
     const bundleAdapter = getMarketplaceAdapter("agents-skill-bundle");
     const bundleResult = bundleAdapter.packageForMarketplace({
-      projectDir: REPO_ROOT,
+      projectDir,
       outDir: bundleOut,
     });
 
@@ -144,6 +156,7 @@ test("staged packaging: writes adapter bundle with zero canonical Skill fork", (
 
 test("cleanMarketplaceArtifacts: deletes only unmodified adapter-owned files verified by manifest", () => {
   withTempDir((tmpDir) => {
+    const { projectDir } = createFixtureProject(tmpDir);
     const outDir = path.normalize(path.join(tmpDir, "clean-stage"));
     const adapter = getMarketplaceAdapter("agents-skill-bundle");
 
@@ -159,7 +172,7 @@ test("cleanMarketplaceArtifacts: deletes only unmodified adapter-owned files ver
 
     // Stage bundle alongside unrelated user file
     const result = adapter.packageForMarketplace({
-      projectDir: REPO_ROOT,
+      projectDir,
       outDir,
     });
     assert.ok(result.writtenFiles.length > 1);
@@ -176,7 +189,7 @@ test("cleanMarketplaceArtifacts: deletes only unmodified adapter-owned files ver
 
     // Re-stage cleanly and run full clean
     adapter.packageForMarketplace({
-      projectDir: REPO_ROOT,
+      projectDir,
       outDir,
     });
     const fullClean = adapter.cleanMarketplaceArtifacts(outDir);
