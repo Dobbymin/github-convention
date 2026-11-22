@@ -2,7 +2,7 @@
 set -eu
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-SOURCE_DIR="$SCRIPT_DIR/skills/github-convention"
+SKILLS_ROOT="$SCRIPT_DIR/skills"
 MARKER_FILE=".github-convention-script-managed"
 
 SCOPE="project"
@@ -13,11 +13,11 @@ usage() {
   cat <<'EOF'
 Usage: uninstall.sh [options]
 
-Uninstall the github-convention Skill installed via install.sh.
+Uninstall all github-convention skills installed via install.sh.
 
 Options:
   --scope <project|global>  Target scope (default: project)
-  --target <dir>            Explicit target directory
+  --target <dir>            Explicit target parent directory for skills
   --dry-run                 Preview actions without removing files
   -h, --help                Show this help message
 EOF
@@ -54,10 +54,10 @@ done
 if [ -z "$TARGET" ]; then
   case "$SCOPE" in
     project)
-      TARGET="$(pwd)/.agents/skills/github-convention"
+      TARGET="$(pwd)/.agents/skills"
       ;;
     global)
-      TARGET="${HOME}/.agents/skills/github-convention"
+      TARGET="${HOME}/.agents/skills"
       ;;
     *)
       echo "Invalid --scope: $SCOPE (expected project or global)" >&2
@@ -66,39 +66,42 @@ if [ -z "$TARGET" ]; then
   esac
 fi
 
-if [ ! -e "$TARGET" ] && [ ! -L "$TARGET" ]; then
-  echo "Nothing to uninstall at $TARGET"
-  exit 0
-fi
+for SKILL_DIR in "$SKILLS_ROOT"/*; do
+  [ -d "$SKILL_DIR" ] || continue
+  [ -f "$SKILL_DIR/SKILL.md" ] || continue
 
-if [ -L "$TARGET" ]; then
-  LINK_TARGET="$(readlink "$TARGET")"
-  case "$LINK_TARGET" in
-    "$SOURCE_DIR"|*"/skills/github-convention")
-      if [ "$DRY_RUN" -eq 1 ]; then
-        echo "[dry-run] Would remove symlink: $TARGET"
-        exit 0
-      fi
-      rm "$TARGET"
-      echo "Removed symlink: $TARGET"
-      exit 0
-      ;;
-    *)
-      echo "Refusing to remove unmanaged symlink: $TARGET -> $LINK_TARGET" >&2
-      exit 1
-      ;;
-  esac
-fi
+  SKILL_NAME="$(basename "$SKILL_DIR")"
+  DEST="$TARGET/$SKILL_NAME"
 
-if [ -d "$TARGET" ] && [ -f "$TARGET/$MARKER_FILE" ]; then
-  if [ "$DRY_RUN" -eq 1 ]; then
-    echo "[dry-run] Would remove managed directory: $TARGET"
-    exit 0
+  if [ ! -e "$DEST" ] && [ ! -L "$DEST" ]; then
+    continue
   fi
-  rm -rf "$TARGET"
-  echo "Removed managed directory: $TARGET"
-  exit 0
-fi
 
-echo "Refusing to remove unmanaged path: $TARGET" >&2
-exit 1
+  if [ -L "$DEST" ]; then
+    LINK_TARGET="$(readlink "$DEST")"
+    case "$LINK_TARGET" in
+      "$SKILL_DIR"|*"/skills/$SKILL_NAME")
+        if [ "$DRY_RUN" -eq 1 ]; then
+          echo "[dry-run] Would remove symlink: $DEST"
+        else
+          rm "$DEST"
+          echo "Removed symlink: $DEST"
+        fi
+        ;;
+      *)
+        echo "Refusing to remove unmanaged symlink: $DEST -> $LINK_TARGET" >&2
+        exit 1
+        ;;
+    esac
+  elif [ -d "$DEST" ] && [ -f "$DEST/$MARKER_FILE" ]; then
+    if [ "$DRY_RUN" -eq 1 ]; then
+      echo "[dry-run] Would remove managed directory: $DEST"
+    else
+      rm -rf "$DEST"
+      echo "Removed managed directory: $DEST"
+    fi
+  else
+    echo "Refusing to remove unmanaged path: $DEST" >&2
+    exit 1
+  fi
+done

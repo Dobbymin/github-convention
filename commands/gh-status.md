@@ -1,14 +1,14 @@
 ---
-description: Inspect live GitHub state alongside local execution state and guide safe recovery of interrupted work.
-argument-hint: "[--project <path>]"
+description: Inspect live GitHub state alongside git worktrees and optional local execution state to guide safe recovery.
+argument-hint: "[--pr <number> | --issue <number>]"
 ---
 
-Follow `skills/github-convention/SKILL.md` and `skills/github-convention/references/state-recovery.md`:
+Follow `skills/using-github-convention/SKILL.md` and `skills/release-and-recovery/SKILL.md`:
 
 `$ARGUMENTS`
 
 Steps:
 
-1. Run `github-convention status --output json` (or `github-convention state list` / `show`) to inspect local execution state.
-2. Query live GitHub Issues, PRs, branches, and CI checks to reconcile any drift with local state.
+1. Inspect local git state (`git status`, `git branch`, `git worktree list`) and optional `.github-convention/state/active/` files if present.
+2. Query live GitHub Issues, PRs, branches, and CI checks (`gh issue list`, `gh pr list`, `gh pr checks`) to reconcile any drift.
 3. Summarize actionable next steps without mutating remote state unless approved.

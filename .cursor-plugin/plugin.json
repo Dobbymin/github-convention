@@ -1,0 +1,16 @@
+{
+  "name": "github-convention",
+  "displayName": "GitHub Convention",
+  "version": "0.2.0",
+  "description": "Issue-driven GitHub workflow skills, scoped subagents, slash commands, and deterministic safety hooks.",
+  "author": {
+    "name": "Dobbymin",
+    "url": "https://github.com/Dobbymin"
+  },
+  "homepage": "https://github.com/Dobbymin/github-convention",
+  "repository": "https://github.com/Dobbymin/github-convention",
+  "license": "MIT",
+  "keywords": ["github", "git", "workflow", "convention", "issues", "pr", "agent-skill"],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json"
+}

@@ -1,5 +1,5 @@
 {
   "name": "github-convention",
-  "version": "0.1.1",
-  "description": "Apply a consistent, safe, Issue-driven GitHub development workflow without forking repository conventions."
+  "version": "0.2.0",
+  "description": "Issue-driven GitHub workflow skills, scoped subagents, slash commands, and deterministic safety hooks."
 }

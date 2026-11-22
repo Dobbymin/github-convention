@@ -1,9 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "references": [
-    { "path": "./packages/core" },
-    { "path": "./packages/cli" },
-    { "path": "./packages/github-adapter" },
-    { "path": "./packages/agent-adapters" }
-  ]
-}
