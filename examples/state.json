@@ -35,7 +35,7 @@
         "agentId": "worker-a",
         "status": "completed",
         "attempt": 1,
-        "reportLanguage": "en"
+        "reportLanguage": "auto"
       },
       "workspace": {
         "kind": "git_worktree",
