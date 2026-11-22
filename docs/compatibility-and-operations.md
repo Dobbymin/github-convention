@@ -136,9 +136,9 @@ session:
 
 Git과 GitHub 상태를 바꾸는 모든 작업의 최종 권한은 **Orchestrator(메인 에이전트)** 에 있습니다.
 
-- **Orchestrator 전용 변경 작업**: Issue 생성·수정, Branch 생성·변경, Worktree 관리, Commit, Push, PR 생성·수정, 리뷰 스레드 해결, Release·Tag 생성, Rollback
+- **Orchestrator 전용 변경 작업**: Issue 생성·수정, Branch 생성·변경, Worktree 관리, Commit, Push, PR 생성·수정, 리뷰 스레드 해결, CI 통과 후 PR Merge, Release·Tag 생성, Rollback
 - **Worker와 Reviewer 제한**: `agents/task-worker.md`, `agents/pr-reviewer.md`, `agents/repo-analyzer.md`는 물론 `dev-principles`의 Reviewer를 포함한 외부 리뷰어도 명시적 위임 없이 Git/GitHub 변경 작업을 수행할 수 없습니다.
-- **불변 금지 규칙**: 보호된 기본 브랜치에 직접 Push할 수 없으며, PR Merge는 사용자가 직접 수행합니다(`guard-bash.mjs`가 `gh pr merge`를 차단합니다).
+- **불변 금지 규칙 및 CI 게이트**: 보호된 기본 브랜치에 직접 Push할 수 없습니다. `push` → PR 생성 후 모든 테스트와 CI가 통과하고 미해결 Blocker가 없으면 Orchestrator가 `gh pr merge`를 수행하며, `guard-bash.mjs`가 CI 미통과·실패·Draft·`--admin`·`gh api` 우회 머지를 차단합니다(수동 머지 유지가 필요하면 `.github-convention/config.yaml`에 `github.auto_merge_on_ci_pass: false`를 지정합니다).
 - **언어 정책**: Issue, PR, 커밋, Worker Report, PR 리뷰 보고서 모두 사용자의 요청 언어를 따릅니다(한국어 요청 시 한국어, 영어 요청 시 영어, 별도 지정 시 해당 언어 우선). 기술 식별자, 코드, Git 명령어, Conventional Commit 접두사, 상태 토큰(`READY_FOR_PR`, `BLOCKED`, `PASS`, `FAIL`)은 원문을 유지합니다.
 
 ---

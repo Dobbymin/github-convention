@@ -33,7 +33,15 @@ Keep Git mutations Orchestrator-owned, commit clean work units, pass all quality
 - Use the target repository's existing PR template (such as `.github/pull_request_template.md`) when present. Use `templates/PULL_REQUEST_TEMPLATE.md` only as fallback.
 - Include the matching Issue closing keyword (`Closes #123` / `Fixes #123`). For a Sub-issue PR, close the child Issue rather than its Parent. Note that GitHub only auto-closes `Closes #N` when merging into the default branch; for non-default base branches, keep the keyword for traceability and note the base branch.
 - Prefer `gh pr create`; use a connected Agent GitHub tool only if `gh` cannot perform the operation.
-- Never merge a PR; the user owns Merge.
+
+## Post-Push PR & CI-Gated Merge
+
+- By default (`github.auto_merge_on_ci_pass: true`), after pushing and creating the PR:
+  1. Monitor CI checks (`gh pr checks <pr> --watch`).
+  2. If any check fails, enter `skills/review-ci-loop/SKILL.md` to diagnose and remediate.
+  3. Once all tests and CI checks pass with zero unresolved blockers, merge the PR using `gh pr merge <pr> --squash --delete-branch` (or the configured `github.merge_method`) and sync the local base branch.
+- Never merge a Draft PR, a PR with failing/pending/unverified checks, or with `--admin`.
+- If `.github-convention/config.yaml` sets `github.auto_merge_on_ci_pass: false`, leave the PR open for manual user merge.
 
 ## Updating Other Open PRs After Merge
 
