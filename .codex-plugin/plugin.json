@@ -1,6 +1,6 @@
 {
   "name": "github-convention",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Issue-driven GitHub workflow skills, scoped subagents, slash commands, and deterministic safety hooks.",
   "author": {
     "name": "Dobbymin",

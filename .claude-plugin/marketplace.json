@@ -7,14 +7,14 @@
   },
   "metadata": {
     "description": "Issue-driven GitHub development workflow plugin with modular skills, subagents, commands, and hooks.",
-    "version": "0.2.0"
+    "version": "0.2.1"
   },
   "plugins": [
     {
       "name": "github-convention",
       "source": "./",
       "description": "Issue-driven GitHub workflow skills, scoped subagents, slash commands, and deterministic safety hooks.",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "category": "productivity",
       "tags": ["github", "git", "workflow", "convention", "issues", "pr"]
     }
