@@ -109,6 +109,30 @@ export const validateRepo = (repoRoot = REPO_ROOT) => {
     if (manifest.hooks !== undefined) {
       assertPathExists(repoRoot, manifest.hooks, relPath, "hooks");
     }
+    for (const [field, assetPath] of [
+      ["icon", manifest.icon],
+      ["logo", manifest.logo],
+      ["interface.logo", manifest.interface?.logo],
+    ]) {
+      if (assetPath === undefined) continue;
+      assertPathExists(repoRoot, assetPath, relPath, field);
+      if (assetPath.toLowerCase().endsWith(".png")) {
+        const buf = fs.readFileSync(path.resolve(repoRoot, path.normalize(assetPath)));
+        const isPng =
+          buf.length >= 24 &&
+          buf.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+        if (!isPng) {
+          throw new Error(`${relPath}: "${field}" is not a valid PNG file (${assetPath})`);
+        }
+        const width = buf.readUInt32BE(16);
+        const height = buf.readUInt32BE(20);
+        if (width !== height || width < 512) {
+          throw new Error(
+            `${relPath}: "${field}" must be a square PNG >= 512x512 (got ${width}x${height})`,
+          );
+        }
+      }
+    }
 
     if (
       relPath === "gemini-extension.json" &&

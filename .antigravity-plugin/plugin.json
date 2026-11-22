@@ -3,6 +3,7 @@
   "displayName": "GitHub Convention",
   "version": "0.2.0",
   "description": "Issue-driven GitHub workflow skills, scoped subagents, slash commands, and deterministic safety hooks.",
+  "logo": "assets/icon.png",
   "category": "Developer Tools",
   "keywords": ["github", "git", "workflow", "convention", "issues", "pr", "agent-skill"],
   "author": {
