@@ -33,9 +33,10 @@ Analyze existing repository conventions before proposing any GitHub Issues, deco
 ## Approval & Idempotent Creation
 
 1. Present draft Issues grouped by Parent. Support group-level approval as well as per-Issue edit/approve/reject/exclude.
-2. Create **only** explicitly approved Issues. Keep unapproved drafts locally (for example in `.github-convention/state/active/` if used) without silently discarding them.
-3. If an approved Issue depends on an excluded/unapproved Issue, keep it approved but mark it blocked; never silently remove the dependency.
-4. Before every remote write, query live GitHub Issues and labels to prevent duplicates. Use a stable plan/task marker so retries stay idempotent.
+2. **Label Precedence & Creation Approval**: Inspect live repository labels (`gh label list`) and prefer existing labels first. Obtain explicit user approval before creating new remote labels (including optional sets from `templates/labels.yaml`).
+3. Create **only** explicitly approved Issues. Keep unapproved drafts locally (for example in `.github-convention/state/active/` if used) without silently discarding them.
+4. If an approved Issue depends on an excluded/unapproved Issue, keep it approved but mark it blocked; never silently remove the dependency.
+5. Before every remote write, query live GitHub Issues and labels to prevent duplicates. Use a stable plan/task marker so retries stay idempotent.
 
 ## Native Sub-issue & Dependency Links
 
