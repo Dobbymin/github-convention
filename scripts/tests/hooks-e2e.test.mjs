@@ -130,15 +130,35 @@ test("guard-bash.mjs subprocess enforces invariants against a real git repositor
     // 3. Plain --force and chained -f are denied; --force-with-lease is allowed
     for (const cmd of [
       "git push --force origin feat/1-e2e",
+      "FOO=1 git push --force origin feat/1-e2e",
+      "env FOO=1 git push origin main",
       "echo ok && git push -f origin feat/1-e2e",
       "git push origin HEAD:main",
+      "git push --delete origin main",
+      "git push origin :main",
       "gh pr merge 1 --squash",
+      "gh api repos/owner/repo/pulls/1/merge -X PUT",
     ]) {
       const res = runGuardHook({ command: cmd, cwd: workDir });
       assert.equal(res.status, 0);
       const parsed = JSON.parse(res.stdout);
       assert.equal(parsed.hookSpecificOutput.permissionDecision, "deny", `Expected deny for: ${cmd}`);
     }
+
+    // Custom github.default_branch in .github-convention/config.yaml is also protected
+    fs.mkdirSync(path.join(workDir, ".github-convention"), { recursive: true });
+    fs.writeFileSync(
+      path.join(workDir, ".github-convention", "config.yaml"),
+      "schema_version: 1\ngithub:\n  default_branch: develop\n",
+    );
+    const customBranchPush = runGuardHook({
+      command: "git push origin develop",
+      cwd: workDir,
+    });
+    assert.equal(
+      JSON.parse(customBranchPush.stdout).hookSpecificOutput.permissionDecision,
+      "deny",
+    );
 
     const leasePush = runGuardHook({
       command: "git push --force-with-lease origin feat/1-e2e",

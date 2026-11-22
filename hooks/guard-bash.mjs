@@ -31,6 +31,52 @@ const tokenize = (segment) => {
   return tokens;
 };
 
+const ENV_ASSIGNMENT_REGEX = /^[A-Za-z_][A-Za-z0-9_]*=/;
+
+const stripCommandPrefixes = (tokens) => {
+  let idx = 0;
+  while (idx < tokens.length) {
+    const tok = tokens[idx];
+    if (ENV_ASSIGNMENT_REGEX.test(tok)) {
+      idx += 1;
+      continue;
+    }
+    if (tok === "command" || tok === "builtin" || tok === "exec") {
+      idx += 1;
+      while (idx < tokens.length && tokens[idx].startsWith("-")) {
+        if (tokens[idx] === "-a") {
+          idx += 2;
+        } else {
+          idx += 1;
+        }
+      }
+      continue;
+    }
+    if (tok === "env") {
+      idx += 1;
+      while (idx < tokens.length) {
+        const arg = tokens[idx];
+        if (arg === "-u" || arg === "--unset" || arg === "-C" || arg === "-S") {
+          idx += 2;
+          continue;
+        }
+        if (arg.startsWith("-")) {
+          idx += 1;
+          continue;
+        }
+        if (ENV_ASSIGNMENT_REGEX.test(arg)) {
+          idx += 1;
+          continue;
+        }
+        break;
+      }
+      continue;
+    }
+    break;
+  }
+  return tokens.slice(idx);
+};
+
 const parseGitSubcommand = (tokens) => {
   if (tokens[0] !== "git") return null;
   let idx = 1;
@@ -47,6 +93,36 @@ const parseGitSubcommand = (tokens) => {
     return { subcommand: tok, args: tokens.slice(idx + 1) };
   }
   return null;
+};
+
+const readConfiguredDefaultBranch = (startDir) => {
+  let current = path.resolve(startDir);
+  while (true) {
+    const cfgPath = path.join(current, ".github-convention", "config.yaml");
+    try {
+      if (fs.existsSync(cfgPath)) {
+        const text = fs.readFileSync(cfgPath, "utf8");
+        const githubSection = text.match(/^github:\s*\r?\n((?:[ \t]+.*\r?\n?)*)/m);
+        if (githubSection) {
+          const branchMatch = githubSection[1].match(/^\s+default_branch:\s*["']?([^\s"'#]+)["']?/m);
+          const configured = branchMatch ? branchMatch[1] : "";
+          if (configured && configured !== "detect") {
+            return configured;
+          }
+        }
+      }
+    } catch {
+      // Ignore unreadable config; fallback to git/default detection.
+    }
+    if (fs.existsSync(path.join(current, ".git"))) {
+      return null;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
 };
 
 const runGit = (args, cwd) => {
@@ -120,14 +196,25 @@ export const evaluateBashCommand = (command, options = {}) => {
   const segments = splitSubcommands(command);
 
   for (const segment of segments) {
-    const tokens = tokenize(segment);
+    const rawTokens = tokenize(segment);
+    const tokens = stripCommandPrefixes(rawTokens);
     if (tokens.length === 0) continue;
 
-    // 4. Never allow `gh pr merge` (user owns merge).
+    // 4. Never allow `gh pr merge` or `gh api .../pulls/.../merge` (user owns merge).
     if (tokens[0] === "gh" && tokens[1] === "pr" && tokens[2] === "merge") {
       return {
         decision: "deny",
         reason: "Blocked: `gh pr merge` is forbidden. The user owns PR merging.",
+      };
+    }
+    if (
+      tokens[0] === "gh" &&
+      tokens[1] === "api" &&
+      tokens.slice(2).some((arg) => /\/pulls\/[^/\s]+\/merge(?:$|\?)|mergePullRequest/.test(arg))
+    ) {
+      return {
+        decision: "deny",
+        reason: "Blocked: merging PRs via `gh api` is forbidden. The user owns PR merging.",
       };
     }
 
@@ -164,12 +251,20 @@ export const evaluateBashCommand = (command, options = {}) => {
         };
       }
 
-      // 2. Block direct push to default branch (or main/master).
+      // 2. Block direct push or deletion push to default/configured protected branch (or main/master).
       const defaultBranch = options.defaultBranch ?? detectDefaultBranch(cwd);
+      const configuredBranch = options.configuredDefaultBranch ?? readConfiguredDefaultBranch(cwd);
       const protectedBranches = new Set([defaultBranch, "main", "master"]);
+      if (configuredBranch) {
+        protectedBranches.add(configuredBranch);
+      }
       const currentBranch =
         options.currentBranch ?? runGit(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
       const targetBranches = extractPushTargetBranches(args);
+      const isDeletePush =
+        args.includes("--delete") ||
+        args.some((arg) => hasShortFlag(arg, "d")) ||
+        args.some((arg) => !arg.startsWith("-") && arg.startsWith(":"));
 
       const pushesProtectedTarget = targetBranches.some((branch) => protectedBranches.has(branch));
       const barePushOnProtectedBranch =
@@ -178,7 +273,9 @@ export const evaluateBashCommand = (command, options = {}) => {
       if (pushesProtectedTarget || barePushOnProtectedBranch) {
         return {
           decision: "deny",
-          reason: `Blocked: direct push to protected default branch (${defaultBranch}) is forbidden. Create a feature branch and open a PR instead.`,
+          reason: isDeletePush
+            ? `Blocked: deleting protected branch (${Array.from(protectedBranches).join("/")}) via \`git push\` is forbidden.`
+            : `Blocked: direct push to protected default branch (${configuredBranch || defaultBranch}) is forbidden. Create a feature branch and open a PR instead.`,
         };
       }
     }
