@@ -174,10 +174,15 @@ export const validateRepo = (repoRoot = REPO_ROOT) => {
   for (const fileName of agentFiles) {
     const content = fs.readFileSync(path.join(agentsDir, fileName), "utf8");
     const fm = parseFrontmatter(content, `agents/${fileName}`);
-    for (const required of ["name", "description", "tools", "model"]) {
+    for (const required of ["name", "description", "model"]) {
       if (!fm[required]) {
         throw new Error(`agents/${fileName}: missing frontmatter field "${required}"`);
       }
+    }
+    if (fm.tools !== undefined) {
+      throw new Error(
+        `agents/${fileName}: omit platform-specific "tools" field for cross-harness compatibility with Gemini CLI`,
+      );
     }
   }
 
