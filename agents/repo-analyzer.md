@@ -1,7 +1,6 @@
 ---
 name: repo-analyzer
 description: Use PROACTIVELY before issue planning to inspect repository conventions, default branch, templates, labels, CI workflows, and optional .github-convention/config.yaml without modifying any files.
-tools: [Read, Glob, Grep, Bash]
 model: inherit
 ---
 
