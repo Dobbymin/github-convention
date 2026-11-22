@@ -77,6 +77,13 @@ export const detectCompanionPlugins = ({
         break;
       }
     }
+    if (
+      !hasDevPrinciples &&
+      (safeExists(path.join(baseDir, ".agents", "plugins", "dev-principles", ".antigravity-plugin", "plugin.json")) ||
+        safeExists(path.join(baseDir, ".agents", "plugins", "dev-principles", "skills", "dev-principles", "SKILL.md")))
+    ) {
+      hasDevPrinciples = true;
+    }
     if (hasDevPrinciples) break;
   }
 
@@ -87,6 +94,15 @@ export const detectCompanionPlugins = ({
         hasDevPrinciples = true;
         break;
       }
+    }
+    if (
+      !hasDevPrinciples &&
+      (safeExists(path.join(resolvedHome, ".gemini", "config", "skills", "dev-principles", "SKILL.md")) ||
+        safeExists(path.join(resolvedHome, ".gemini", "config", "plugins", "dev-principles", ".antigravity-plugin", "plugin.json")) ||
+        safeExists(path.join(resolvedHome, ".gemini", "config", "plugins", "dev-principles", "plugin.json")) ||
+        safeExists(path.join(resolvedHome, ".gemini", "config", "plugins", "dev-principles", "skills", "dev-principles", "SKILL.md")))
+    ) {
+      hasDevPrinciples = true;
     }
     if (
       !hasDevPrinciples &&
