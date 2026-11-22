@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Run verification and artifact staging without publishing"
+        description: "Run verification without creating a GitHub Release"
         required: true
         type: boolean
         default: true
@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 jobs:
-  verify-and-package:
+  verify:
     strategy:
       fail-fast: false
       matrix:
@@ -28,48 +28,18 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
-      - run: node --test scripts/release/release.test.mjs
-      - run: node scripts/release/build-artifacts.mjs --out dist-release
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-artifacts-${{ matrix.os }}
-          path: dist-release/
-          if-no-files-found: error
+      - run: npm run check
 
-  publish:
-    needs: verify-and-package
+  publish-release:
+    needs: verify
     runs-on: ubuntu-latest
-    # Protected GitHub environment "release" enforces explicit human approval before any publish.
     environment: release
     if: github.event_name == 'push' || inputs.dry_run == false
     permissions:
       contents: write
-      id-token: write
 
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          registry-url: "https://registry.npmjs.org"
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - uses: actions/download-artifact@v4
-        with:
-          name: release-artifacts-ubuntu-latest
-          path: dist-release
-      - name: Verify staged checksums
-        working-directory: dist-release
-        run: sha256sum -c SHA256SUMS.txt
-      - name: Publish npm workspaces
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --workspaces --access public
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -78,8 +48,6 @@ jobs:
           if ! echo "$TAG_NAME" | grep -qE '^v'; then
             TAG_NAME="v$(node -p "require('./package.json').version")"
           fi
-          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release upload "$TAG_NAME" dist-release/* --clobber
-          else
-            gh release create "$TAG_NAME" dist-release/* --title "$TAG_NAME" --generate-notes
+          if ! gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release create "$TAG_NAME" --title "$TAG_NAME" --generate-notes
           fi

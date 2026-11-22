@@ -1,7 +1,7 @@
 {
   "name": "github-convention",
-  "version": "0.1.1",
-  "description": "Apply a consistent, safe, Issue-driven GitHub development workflow without forking repository conventions.",
+  "version": "0.2.0",
+  "description": "Issue-driven GitHub workflow skills, scoped subagents, slash commands, and deterministic safety hooks.",
   "author": {
     "name": "Dobbymin",
     "url": "https://github.com/Dobbymin"
@@ -9,8 +9,5 @@
   "homepage": "https://github.com/Dobbymin/github-convention",
   "repository": "https://github.com/Dobbymin/github-convention",
   "license": "MIT",
-  "keywords": ["github", "git", "workflow", "convention", "issues", "pr", "agent-skill"],
-  "skills": "./skills/",
-  "commands": "./commands/",
-  "hooks": "./hooks/hooks.json"
+  "keywords": ["github", "git", "workflow", "convention", "issues", "pr", "agent-skill"]
 }

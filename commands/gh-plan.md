@@ -3,12 +3,12 @@ description: Analyze repository conventions, break down work into an Issue depen
 argument-hint: "[goal or feature summary]"
 ---
 
-Follow `skills/github-convention/SKILL.md` and `skills/github-convention/references/issue-planning.md` for:
+Follow `skills/using-github-convention/SKILL.md` and `skills/issue-planning/SKILL.md` for:
 
 `$ARGUMENTS`
 
 Steps:
 
-1. Read `.github-convention/config.yaml` and existing repository conventions (templates, labels, CI, branch rules).
-2. Run `github-convention plan validate --output json` or inspect live GitHub Issues before proposing drafts.
-3. Present Parent/Sub-issue drafts and dependencies for explicit user approval before any remote Issue creation.
+1. Inspect existing repository conventions (templates, labels, CI, branch/commit rules, and optional `.github-convention/config.yaml`) using `agents/repo-analyzer.md` when helpful.
+2. Query live GitHub Issues (`gh issue list`) and labels (`gh label list`) before proposing drafts.
+3. Present Parent/Sub-issue drafts, acceptance criteria, and hard `Blocked by` dependencies for explicit user approval before creating any remote Issue.

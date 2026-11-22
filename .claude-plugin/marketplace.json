@@ -6,15 +6,15 @@
     "url": "https://github.com/Dobbymin"
   },
   "metadata": {
-    "description": "Issue-driven GitHub development workflow skill and CLI.",
-    "version": "0.1.1"
+    "description": "Issue-driven GitHub development workflow plugin with modular skills, subagents, commands, and hooks.",
+    "version": "0.2.0"
   },
   "plugins": [
     {
       "name": "github-convention",
       "source": "./",
-      "description": "Apply a consistent, safe, Issue-driven GitHub development workflow without forking repository conventions.",
-      "version": "0.1.1",
+      "description": "Issue-driven GitHub workflow skills, scoped subagents, slash commands, and deterministic safety hooks.",
+      "version": "0.2.0",
       "category": "productivity",
       "tags": ["github", "git", "workflow", "convention", "issues", "pr"]
     }

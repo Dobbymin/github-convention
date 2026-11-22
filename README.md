@@ -1,106 +1,117 @@
 # github-convention
 
-[![npm version](https://img.shields.io/npm/v/@dobbymin/github-convention-cli)](https://www.npmjs.com/package/@dobbymin/github-convention-cli)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D22-339933)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-[한국어](README.md) | [English](README.en.md)
+저장소의 기존 컨벤션을 유지하면서 이슈 중심의 GitHub 개발 워크플로를 적용하는 플러그인입니다.
 
-**저장소의 기존 컨벤션을 훼손하지 않고, 이슈 중심의 안전한 GitHub 개발 워크플로를 적용하는 AI 에이전트 스킬 및 CLI 도구입니다.**
-
-메인 에이전트(오케스트레이터)가 저장소 분석, 이슈 계획·승인, 상태 관리, PR·릴리스 흐름을 전담하고, 병렬 워커는 격리된 작업 공간에서 구현과 테스트만 수행하도록 역할을 분리합니다.
+별도 빌드나 npm 패키지 설치 없이 마크다운 스킬, 서브에이전트, 슬래시 커맨드, 경량 Node 훅으로 동작합니다. 모든 Git 및 GitHub 변경 작업은 메인 에이전트(오케스트레이터)가 맡고, 병렬 워커는 격리된 워크트리에서 구현과 테스트만 수행합니다.
 
 ---
 
-## 빠른 시작
+## v0.2.0 구조 요약
 
-자세한 플랫폼별 설치와 제거 방법은 [`INSTALL.md`](INSTALL.md)를 참고하세요.
+- **플러그인 네이티브 구조:** TypeScript 모노레포와 CLI를 제거하고, `gh` CLI와 에이전트 네이티브 도구에 위임합니다.
+- **Zero-Config 기본 동작:** `.github-convention/config.yaml`이 없는 일반 Git 저장소에서도 `.github/` 템플릿, 라벨, CI, 커밋 이력을 읽어 바로 동작합니다.
+- **단계별 스킬 분리:** 모든 `SKILL.md`를 8KB(8,192바이트) 이하로 쪼개 필요한 단계만 불러옵니다.
+- **결정론적 안전 훅:** `PreToolUse(Bash)` 훅이 `--force` 단독 사용, 기본 브랜치 직접 푸시, `--no-verify`, `gh pr merge`, 스테이징된 시크릿 커밋을 코드 수준에서 차단합니다.
 
-### 1. 마켓플레이스 직접 설치 (Claude Code 등)
+---
+
+## 설치 방법
+
+### 1. Claude Code 마켓플레이스 설치
 
 ```text
 /plugin marketplace add Dobbymin/github-convention
 /plugin install github-convention
 ```
 
-### 2. Node CLI로 프로젝트 적용 (`Node >= 22`)
+### 2. 지원 하네스 루트 매니페스트
+
+저장소 루트에 플랫폼별 매니페스트를 함께 둡니다.
+
+- Claude Code: [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json), [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json)
+- Codex: [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json)
+- Cursor: [`.cursor-plugin/plugin.json`](.cursor-plugin/plugin.json)
+- Antigravity: [`.antigravity-plugin/plugin.json`](.antigravity-plugin/plugin.json)
+- Gemini CLI: [`gemini-extension.json`](gemini-extension.json)
+
+### 3. 셸 스크립트로 스킬만 설치 (`install.sh` / `uninstall.sh`)
+
+`skills/` 아래 6개 스킬을 `.agents/skills/`(또는 지정한 경로)에 심링크하거나 복사합니다.
 
 ```bash
-npx @dobbymin/github-convention-cli doctor --project .
-npx @dobbymin/github-convention-cli init --project .
-npx @dobbymin/github-convention-cli install --project .
-```
-
-### 3. 경량 셸 스크립트로 스킬만 설치
-
-```bash
+# 프로젝트 범위 심링크 설치
 ./install.sh --scope project
+
+# 전역 복사 설치 및 제거
+./install.sh --scope global --copy
+./uninstall.sh --scope global
 ```
 
 ---
 
-## 슬래시 커맨드 & 조건부 세션 훅
+## 구성 요소
 
-- **`commands/` 슬래시 커맨드:** `skills/github-convention/SKILL.md` 및 `references/`로 연결되는 진입 커맨드 4종을 제공합니다.
-  - `gh-plan`: 저장소 컨벤션 분석 및 이슈 의존성 DAG 초안 작성
-  - `gh-pr`: 브랜치·품질 게이트·시크릿 스캔 검증 후 PR 생성/갱신
-  - `gh-status`: 실시간 GitHub 상태와 로컬 실행 상태 동기화·복구
-  - `gh-doctor`: 읽기 전용 진단(`doctor`, `validate`) 실행
-- **`hooks/` 조건부 `SessionStart` 훅:** 작업 디렉토리에 `.github-convention/config.yaml`이 있는 프로젝트에서만 짧은 워크플로 안내를 출력하며, 일반 저장소에서는 아무 출력 없이 종료합니다.
+### 스킬 (`skills/`)
 
----
+세션 시작 시 `using-github-convention`이 작업 성격에 맞는 스킬로 안내합니다.
 
-## 워크플로 & 승인 경계
+| 스킬 | 역할 |
+| :--- | :--- |
+| [`using-github-convention`](skills/using-github-convention/SKILL.md) | 워크플로 라우팅, Zero-Config 감지, 아티팩트 언어 규칙, 공통 승인 경계 |
+| [`issue-planning`](skills/issue-planning/SKILL.md) | 저장소 컨벤션 분석, Parent/Sub-issue 분해, `Blocked by` DAG, 승인 후 이슈 생성 |
+| [`parallel-execution`](skills/parallel-execution/SKILL.md) | 단독/순차/병렬 모드 선택, worktree 격리, 워커 계약 및 diff 검증 |
+| [`git-pr-workflow`](skills/git-pr-workflow/SKILL.md) | 브랜치/단위 커밋, PR 전 7단계 게이트, 템플릿 우선순위, 리베이스 |
+| [`review-ci-loop`](skills/review-ci-loop/SKILL.md) | PR 리뷰 분류(자동 수정 vs 승인 요청), 스레드 해결, CI 실패 재시도 |
+| [`release-and-recovery`](skills/release-and-recovery/SKILL.md) | 시크릿 스캔, 훅/브랜치 보호, 배포 헬스체크, SemVer 릴리스, 중단 상태 복구 |
 
-1. **분석 (Analyze):** 기존 이슈·PR 템플릿, 라벨, 브랜치·커밋 규칙, CI 게이트를 읽어 로컬 캐시에 반영합니다.
-2. **이슈 계획 (Plan):** 구현 가능한 단위로 이슈와 `Blocked by` 의존성을 제안하며, 사용자 승인 전에는 원격 이슈를 생성하지 않습니다.
-3. **구현 및 검증 (Execute):** 독립 태스크만 격리된 워크트리에서 병렬 실행하고, 워커의 커밋·푸시·머지는 차단합니다.
-4. **PR · 릴리스 (PR & Release):** 빌드·린트·타입·테스트·시크릿 스캔을 통과한 뒤에만 PR을 올리며, 릴리스 발행·태그 생성·머지는 항상 명시적 승인 후 실행합니다.
+### 서브에이전트 (`agents/`)
 
----
+역할에 따라 허용 도구를 제한합니다.
 
-## 주요 CLI 명령어
+- [`repo-analyzer`](agents/repo-analyzer.md) — 읽기 전용 저장소 컨벤션 및 템플릿 분석
+- [`task-worker`](agents/task-worker.md) — 격리된 워크트리 내 구현·테스트 전용(커밋/푸시/`gh` 쓰기 차단)
+- [`pr-reviewer`](agents/pr-reviewer.md) — 읽기 전용 PR 전 diff·완료 기준·시크릿·언어 셀프리뷰
 
-| 명령어                             | 설명                                               | 비고                      |
-| :--------------------------------- | :------------------------------------------------- | :------------------------ |
-| `doctor`                           | `git`, `gh`, 에이전트, 스킬 무결성 점검            | 읽기 전용                 |
-| `init`                             | `.github-convention/config.yaml` 및 정규 스킬 준비 | `--dry-run` 지원          |
-| `install` / `update` / `uninstall` | 에이전트별 스킬 설치·갱신·제거                     | `--scope`, `--agent` 지원 |
-| `list` / `validate`                | 설치 목록 및 설정·상태 스키마 검증                 | `--output json` 지원      |
-| `plan validate` / `plan apply`     | 이슈 계획 검증 및 승인된 이슈 생성                 | `--yes` 필요              |
-| `status` / `state` / `cleanup`     | 실행 상태 조회·복구·아카이브 정리                  | `--output json` 지원      |
+### 슬래시 커맨드 (`commands/`)
 
-전체 명령어·종료 코드·JSON 계약은 [`docs/cli-contract.md`](docs/cli-contract.md)를 확인하세요.
+| 커맨드 | 설명 |
+| :--- | :--- |
+| `/gh-plan` | 저장소 컨벤션 분석 및 승인 기반 Parent/Sub-issue 초안 작성 |
+| `/gh-pr` | 품질 게이트·시크릿 스캔·셀프리뷰 검증 후 PR 생성 또는 갱신 |
+| `/gh-review` | PR 리뷰 코멘트 분류·수정 및 실패한 CI 점검·재시도 |
+| `/gh-status` | 실시간 GitHub 상태와 로컬 worktree·상태 파일 대조 및 복구 안내 |
+| `/gh-doctor` | `git`, `gh auth`, 기본 브랜치, 템플릿, 플러그인 상태 읽기 전용 점검 |
 
----
+### 훅 (`hooks/`)
 
-## 문서 및 스키마 안내
+Node.js 22 이상 표준 라이브러리만 사용하며 외부 의존성이 없습니다.
 
-- [설치 가이드 (`INSTALL.md`)](INSTALL.md) — 마켓플레이스, Node CLI, 셸 스크립트 상세 설치 안내
-- [스킬 원본 (`skills/github-convention/SKILL.md`)](skills/github-convention/SKILL.md) — 에이전트 지침 및 `references/`
-- [CLI 계약 (`docs/cli-contract.md`)](docs/cli-contract.md) — 명령어, 플래그, JSON 출력, 종료 코드
-- [에이전트 어댑터 (`docs/agent-adapters.md`)](docs/agent-adapters.md) — 7종 에이전트 감지 기준 및 스킬 경로
-- [마켓플레이스 어댑터 (`docs/marketplace-adapters.md`)](docs/marketplace-adapters.md) — 루트 매니페스트 및 로컬 스테이징 경계
-- [배포 및 릴리스 (`docs/distribution.md`)](docs/distribution.md) · [릴리스 절차 (`docs/release-workflow.md`)](docs/release-workflow.md)
-- [이슈 형식 (`docs/issue-templates.md`)](docs/issue-templates.md) · [라벨 정책 (`docs/label-policy.md`)](docs/label-policy.md) · [PR 템플릿 (`templates/PULL_REQUEST_TEMPLATE.md`)](templates/PULL_REQUEST_TEMPLATE.md)
-- [설정 예시 (`examples/config.yaml`)](examples/config.yaml) · [실행 상태 예시 (`examples/state.json`)](examples/state.json)
-- [설정 스키마 (`schemas/config.schema.json`)](schemas/config.schema.json) · [상태 스키마 (`schemas/state.schema.json`)](schemas/state.schema.json)
+- [`session-start.mjs`](hooks/session-start.mjs) — `SessionStart`(`startup|clear|compact`) 시 Git 저장소 또는 `.github-convention/config.yaml`을 감지해 `using-github-convention` 컨텍스트를 주입합니다.
+- [`guard-bash.mjs`](hooks/guard-bash.mjs) — `PreToolUse(Bash)`에서 `--force` 단독 사용, 기본 브랜치 직접 푸시, `--no-verify`, `gh pr merge`, 스테이징된 시크릿을 차단합니다. 이슈/태그/릴리스 생성은 스킬의 사용자 승인 절차를 따릅니다.
 
 ---
 
-## 로컬 개발 및 검증
+## 선택적 프로젝트 설정
 
-Node.js 22 이상이 필요합니다.
+대부분의 저장소는 별도 설정 없이 바로 동작합니다. 병렬 워커 상한 등 프로젝트별 예외가 필요할 때만 `.github-convention/config.yaml`을 추가하세요.
+
+- [설정 예시 (`examples/config.yaml`)](examples/config.yaml) · [설정 스키마 (`schemas/config.schema.json`)](schemas/config.schema.json)
+- [로컬 상태 예시 (`examples/state.json`)](examples/state.json) · [상태 스키마 (`schemas/state.schema.json`)](schemas/state.schema.json)
+- [이슈 템플릿 안내 (`docs/issue-templates.md`)](docs/issue-templates.md) · [라벨 정책 (`docs/label-policy.md`)](docs/label-policy.md) · [PR 기본 템플릿 (`templates/PULL_REQUEST_TEMPLATE.md`)](templates/PULL_REQUEST_TEMPLATE.md)
+
+---
+
+## 저장소 검증
+
+Node.js 22 이상 환경에서 외부 패키지 설치 없이 바로 검증할 수 있습니다.
 
 ```bash
-npm ci
-npm run build
-npm run format:check
-npm run lint
-npm run typecheck
-npm test
-npm run verify:manifests
-npm run test:scripts
+npm run validate   # 매니페스트 버전, frontmatter, 스킬 8KB 상한, 훅 경로 점검
+npm run garden     # 깨진 마크다운 링크, 레거시 잔여 참조, 고아 파일 점검
+npm test           # 훅, 검증기, install.sh/uninstall.sh 단위 테스트
+npm run check      # 위 3가지 일괄 실행
 ```
 
 ## 라이선스

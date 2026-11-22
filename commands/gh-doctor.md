@@ -1,6 +1,6 @@
 ---
-description: Run read-only diagnostics and config/state validation for github-convention in the current repository.
-argument-hint: "[--project <path>]"
+description: Run read-only diagnostics for git, gh authentication, repository conventions, and github-convention plugin integrity.
+argument-hint: "[--verbose]"
 ---
 
 Run read-only diagnostics for the current repository:
@@ -9,6 +9,6 @@ Run read-only diagnostics for the current repository:
 
 Steps:
 
-1. Run `github-convention doctor --output json` and `github-convention validate --output json`.
-2. Report detected agents, canonical Skill integrity, `.github-convention/config.yaml` schema status, and any remediation steps.
-3. Do not modify files or install adapters without explicit user confirmation.
+1. Verify `git --version`, repository root, default branch, and `gh auth status`.
+2. Inspect `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`, labels, CI workflows, and optional `.github-convention/config.yaml`.
+3. Report detected conventions, plugin/hook readiness, and any remediation steps without modifying files.

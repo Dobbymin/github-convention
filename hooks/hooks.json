@@ -2,13 +2,25 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|resume",
+        "matcher": "startup|clear|compact",
         "hooks": [
           {
             "type": "command",
-            "command": "node -e \"import('node:path').then(p => import(require('node:url').pathToFileURL(p.join((process.env.CLAUDE_PLUGIN_ROOT || '').split(String.fromCharCode(92)).join('/'), 'hooks', 'session-context.mjs')).href)).catch(() => {})\"",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs\"",
             "timeout": 10,
-            "statusMessage": "Checking github-convention config..."
+            "statusMessage": "Loading github-convention..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/guard-bash.mjs\"",
+            "timeout": 10
           }
         ]
       }
