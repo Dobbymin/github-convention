@@ -1,5 +1,6 @@
 {
   "name": "github-convention",
   "version": "0.2.0",
-  "description": "Issue-driven GitHub workflow skills, scoped subagents, slash commands, and deterministic safety hooks."
+  "description": "Issue-driven GitHub workflow skills, scoped subagents, slash commands, and deterministic safety hooks.",
+  "contextFileName": "skills/using-github-convention/SKILL.md"
 }
