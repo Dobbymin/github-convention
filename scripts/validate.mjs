@@ -10,6 +10,7 @@ export const MANIFEST_PATHS = [
   ".claude-plugin/plugin.json",
   ".claude-plugin/marketplace.json",
   ".codex-plugin/plugin.json",
+  ".agents/plugins/marketplace.json",
   ".cursor-plugin/plugin.json",
   ".antigravity-plugin/plugin.json",
   "gemini-extension.json",
@@ -87,6 +88,17 @@ export const validateRepo = (repoRoot = REPO_ROOT) => {
         );
       }
       assertPathExists(repoRoot, primary.source, relPath, "plugins[0].source");
+    } else if (relPath === ".agents/plugins/marketplace.json") {
+      if (!Array.isArray(manifest.plugins) || manifest.plugins.length === 0) {
+        throw new Error(`${relPath}: plugins array must be non-empty`);
+      }
+      const primary = manifest.plugins[0];
+      if (primary.name !== "github-convention") {
+        throw new Error(`${relPath}: plugins[0].name must be "github-convention"`);
+      }
+      if (primary.source?.path !== undefined) {
+        assertPathExists(repoRoot, primary.source.path, relPath, "plugins[0].source.path");
+      }
     } else if (manifest.version !== expectedVersion) {
       throw new Error(`${relPath}: version (${manifest.version}) !== ${expectedVersion}`);
     }
