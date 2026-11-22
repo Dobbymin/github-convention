@@ -58,6 +58,10 @@
 # 전역 복사 설치 (.github-convention-script-managed 마커 기록) 및 제거
 ./install.sh --scope global --copy
 ./uninstall.sh --scope global
+
+# Windows / 크로스플랫폼 (Node.js 22+)
+node scripts/install.mjs --scope project --copy
+node scripts/install.mjs --uninstall --scope project
 ```
 
 ---

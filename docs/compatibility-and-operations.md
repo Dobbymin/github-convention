@@ -43,12 +43,16 @@ Claude Code 마켓플레이스 또는 셸 스크립트로 설치할 수 있습�
 # 예시: 같은 대상 디렉터리에 두 플러그인 스킬을 함께 설치
 /path/to/dev-principles/install.sh --target .agents/skills
 /path/to/github-convention/install.sh --target .agents/skills
+
+# Windows / 크로스플랫폼 (Node.js 22+)
+node /path/to/github-convention/scripts/install.mjs --target .agents/skills
 ```
 
 삭제할 때도 각자 자신이 설치한 스킬만 제거합니다.
 
 ```bash
 /path/to/github-convention/uninstall.sh --target .agents/skills
+node /path/to/github-convention/scripts/install.mjs --uninstall --target .agents/skills
 ```
 
 ---
