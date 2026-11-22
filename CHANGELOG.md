@@ -4,6 +4,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-22
+
+### Changed
+
+- Refactored repository into a zero-dependency, plugin-native architecture (`skills/`, `agents/`, `commands/`, `hooks/`, and native root manifests for Claude Code, Codex, Cursor, Antigravity, and Gemini CLI).
+- Split the monolithic `skills/github-convention/SKILL.md` into 6 focused skills under `skills/` (each <= 8,192 bytes): `using-github-convention`, `issue-planning`, `parallel-execution`, `git-pr-workflow`, `review-ci-loop`, and `release-and-recovery`.
+- Switched to Zero-Config operation by default in any Git repository, keeping `.github-convention/config.yaml` and `.github-convention/state/active/` as optional overrides.
+- Updated `install.sh` and `uninstall.sh` to manage all skills under `skills/`.
+
+### Added
+
+- Scoped subagents under `agents/`: `repo-analyzer.md`, `task-worker.md`, and `pr-reviewer.md`.
+- `commands/gh-review.md` slash command and updated `gh-plan`, `gh-pr`, `gh-status`, `gh-doctor` to use `gh` CLI and modular skills directly.
+- Deterministic `hooks/session-start.mjs` (`SessionStart` bootstrap) and `hooks/guard-bash.mjs` (`PreToolUse` Bash guardrails blocking plain `--force`, default-branch direct push, `--no-verify`, `gh pr merge`, and staged secrets).
+- Zero-dependency `scripts/validate.mjs`, `scripts/garden.mjs`, and `scripts/tests/plugin.test.mjs` (`npm run check`).
+
+### Removed
+
+- Removed the TypeScript CLI monorepo (`packages/*`), `tsconfig*.json`, ESLint/Prettier config, npm release packaging scripts, and CLI-specific documentation.
+
 ## [0.1.1] - 2026-11-21
 
 ### Changed
