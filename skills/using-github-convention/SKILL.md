@@ -28,10 +28,10 @@ Load only the skill needed for the current phase:
 5. Do not re-ask decisions already recorded in Project Config, active Local State, or the current session.
 6. If approval cannot be verified or worktree ownership/diff is ambiguous, stop and ask.
 
-## GitHub Artifact Language
+## Output & Report Language
 
-- Write Issue titles/bodies, PR titles/bodies, and commit subjects/bodies in Korean when the user writes in Korean or requests Korean. Otherwise use the user's language. Repository templates and English examples never override this rule.
-- Keep technical identifiers, commands, code, API names, required GitHub closing keywords (`Closes #123`), and Conventional Commit prefixes unchanged. Write human-readable text after the prefix in the selected language (for example, `feat: 로그인 세션 갱신 처리`).
+- Write Issue titles/bodies, PR titles/bodies, commit subjects/bodies, and worker/reviewer reports in Korean when the user writes in Korean or requests Korean. When the user writes in English or requests English, write them in English. Otherwise match the user's language, unless a user or project instruction explicitly specifies another language.
+- Keep technical identifiers, code, API names, file paths, Git commands, required closing keywords (`Closes #123`), status tokens (`READY_FOR_PR`, `BLOCKED`, `PASS`, `FAIL`), and Conventional Commit prefixes unchanged. Write human-readable text after the prefix in the selected language (for example, `feat: 로그인 세션 갱신 처리`).
 - Verify language compliance before every commit or GitHub write; fix non-compliant drafts first.
 
 ## Universal Approval Boundaries
@@ -50,6 +50,12 @@ Never treat `--yes`, non-interactive mode, a previous ambiguous reply, or silenc
 
 ## Git & Merge Authority
 
-- Orchestrator owns all Git and GitHub mutations (branches, worktrees, rebase, commit, push, Issues, labels, dependencies, PR creation, review-thread resolution).
+- Orchestrator holds exclusive authority over all Git and GitHub mutations: creating/editing Issues, creating/switching Branches, managing Worktrees, Committing, Pushing, creating/editing PRs, resolving review threads, creating Releases/Tags, and executing Rollbacks.
+- Workers (`agents/task-worker.md`), Reviewers (`agents/pr-reviewer.md`, `agents/repo-analyzer.md`), and any companion/external reviewers (such as `dev-principles`'s `principles-reviewer`, `architecture-reviewer`, and `security-reviewer`) must never perform undelegated Git or GitHub mutations, even when co-installed.
 - Prefer the user's existing `gh auth` session; use a connected Agent GitHub tool only when `gh` cannot perform the operation.
 - Never push directly to the protected default branch. Never merge a PR; the user owns Merge.
+
+## Companion Plugin Boundaries
+
+- `github-convention` works completely standalone without any companion plugin.
+- When `dev-principles` is also installed, `github-convention` owns GitHub workflow metadata discovery, Issue/PR/commit conventions, CI/secret gates, and Orchestrator Git/GitHub authority, while leaving code architecture, SoC, type safety, and Rule ID audits to `dev-principles`.

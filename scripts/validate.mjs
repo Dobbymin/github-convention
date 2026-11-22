@@ -20,6 +20,126 @@ const MAX_SKILL_BYTES = 8192;
 
 const readJson = (filePath) => JSON.parse(fs.readFileSync(filePath, "utf8"));
 
+const parseYamlScalar = (raw) => {
+  const value = raw.trim();
+  if (value === "true") return true;
+  if (value === "false") return false;
+  if (value === "null" || value === "~") return null;
+  if (/^-?\d+$/.test(value)) return Number.parseInt(value, 10);
+  if (/^-?\d+\.\d+$/.test(value)) return Number.parseFloat(value);
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    return value.slice(1, -1);
+  }
+  return value;
+};
+
+export const parseSimpleYaml = (text) => {
+  const root = {};
+  const stack = [{ indent: -1, obj: root }];
+  const lines = text.split(/\r?\n/);
+
+  for (const rawLine of lines) {
+    const stripped = rawLine.replace(/\s+#.*$/, "").replace(/^\s*#.*$/, "");
+    if (!stripped.trim()) continue;
+    const indent = stripped.search(/\S/);
+    const trimmed = stripped.trim();
+
+    while (stack.length > 1 && indent <= stack[stack.length - 1].indent) {
+      stack.pop();
+    }
+
+    const parent = stack[stack.length - 1].obj;
+    const colonIdx = trimmed.indexOf(":");
+    if (colonIdx === -1) continue;
+
+    const key = trimmed.slice(0, colonIdx).trim();
+    const rest = trimmed.slice(colonIdx + 1).trim();
+
+    if (rest === "") {
+      const child = {};
+      parent[key] = child;
+      stack.push({ indent, obj: child });
+    } else {
+      parent[key] = parseYamlScalar(rest);
+    }
+  }
+
+  return root;
+};
+
+const matchesJsonType = (value, typeName) => {
+  if (typeName === "null") return value === null;
+  if (typeName === "array") return Array.isArray(value);
+  if (typeName === "object") return value !== null && typeof value === "object" && !Array.isArray(value);
+  if (typeName === "integer") return typeof value === "number" && Number.isInteger(value);
+  if (typeName === "number") return typeof value === "number" && Number.isFinite(value);
+  return typeof value === typeName;
+};
+
+export const validateAgainstSchema = (value, schema, label = "value") => {
+  if (!schema || typeof schema !== "object") return;
+
+  if (schema.type !== undefined) {
+    const allowed = Array.isArray(schema.type) ? schema.type : [schema.type];
+    if (!allowed.some((t) => matchesJsonType(value, t))) {
+      throw new Error(`${label}: expected type ${allowed.join("|")}, got ${value === null ? "null" : Array.isArray(value) ? "array" : typeof value}`);
+    }
+  }
+
+  if (schema.const !== undefined && value !== schema.const) {
+    throw new Error(`${label}: expected const ${JSON.stringify(schema.const)}, got ${JSON.stringify(value)}`);
+  }
+
+  if (schema.enum !== undefined && !schema.enum.includes(value)) {
+    throw new Error(`${label}: value ${JSON.stringify(value)} not in enum [${schema.enum.join(", ")}]`);
+  }
+
+  if (typeof value === "number") {
+    if (schema.minimum !== undefined && value < schema.minimum) {
+      throw new Error(`${label}: ${value} < minimum ${schema.minimum}`);
+    }
+    if (schema.maximum !== undefined && value > schema.maximum) {
+      throw new Error(`${label}: ${value} > maximum ${schema.maximum}`);
+    }
+  }
+
+  if (typeof value === "string" && schema.minLength !== undefined && value.length < schema.minLength) {
+    throw new Error(`${label}: length ${value.length} < minLength ${schema.minLength}`);
+  }
+
+  if (Array.isArray(value)) {
+    if (schema.uniqueItems) {
+      const seen = new Set(value.map((item) => JSON.stringify(item)));
+      if (seen.size !== value.length) {
+        throw new Error(`${label}: array items must be unique`);
+      }
+    }
+    if (schema.items) {
+      value.forEach((item, idx) => validateAgainstSchema(item, schema.items, `${label}[${idx}]`));
+    }
+  }
+
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    if (Array.isArray(schema.required)) {
+      for (const req of schema.required) {
+        if (!(req in value)) {
+          throw new Error(`${label}: missing required property "${req}"`);
+        }
+      }
+    }
+    if (schema.properties) {
+      for (const [key, propSchema] of Object.entries(schema.properties)) {
+        if (key in value) {
+          validateAgainstSchema(value[key], propSchema, `${label}.${key}`);
+        }
+      }
+    }
+  }
+};
+
 export const parseFrontmatter = (content, fileLabel) => {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
   if (!match) {
@@ -259,6 +379,72 @@ export const validateRepo = (repoRoot = REPO_ROOT) => {
         }
       }
     }
+  }
+
+  // Validate optional root hooks.json (Antigravity native hooks)
+  const rootHooksJsonPath = path.join(repoRoot, "hooks.json");
+  if (fs.existsSync(rootHooksJsonPath)) {
+    const rootHooks = readJson(rootHooksJsonPath);
+    if (!rootHooks || typeof rootHooks !== "object" || Array.isArray(rootHooks)) {
+      throw new Error("hooks.json: must be a top-level JSON object");
+    }
+    for (const [hookName, hookConfig] of Object.entries(rootHooks)) {
+      if (!hookConfig || typeof hookConfig !== "object" || Array.isArray(hookConfig)) {
+        throw new Error(`hooks.json: "${hookName}" must be an object`);
+      }
+      for (const [eventName, entries] of Object.entries(hookConfig)) {
+        if (eventName === "enabled") continue;
+        if (!Array.isArray(entries)) {
+          throw new Error(`hooks.json: ${hookName}.${eventName} must be an array`);
+        }
+        for (const entry of entries) {
+          const handlers = Array.isArray(entry.hooks) ? entry.hooks : [entry];
+          for (const handler of handlers) {
+            const cmd = String(handler?.command ?? "");
+            const relMatch = cmd.match(/\.(?:\/|\\)hooks(?:\/|\\)([^\s"']+)/);
+            if (relMatch) {
+              assertPathExists(
+                repoRoot,
+                path.join("hooks", relMatch[1]),
+                "hooks.json",
+                `${hookName}.${eventName}`,
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Validate README.md version parity
+  const readmePath = path.join(repoRoot, "README.md");
+  if (fs.existsSync(readmePath)) {
+    const readmeText = fs.readFileSync(readmePath, "utf8");
+    const expectedTag = `v${expectedVersion}`;
+    if (!readmeText.includes(`## ${expectedTag} 구조 요약`)) {
+      throw new Error(`README.md: expected version heading "## ${expectedTag} 구조 요약"`);
+    }
+    const badgeMatch = readmeText.match(/release-(v[0-9]+\.[0-9]+\.[0-9]+)-/);
+    if (badgeMatch && badgeMatch[1] !== expectedTag) {
+      throw new Error(`README.md: release badge (${badgeMatch[1]}) !== ${expectedTag}`);
+    }
+  }
+
+  // Validate examples/* against schemas/*.schema.json
+  const configExamplePath = path.join(repoRoot, "examples", "config.yaml");
+  const configSchemaPath = path.join(repoRoot, "schemas", "config.schema.json");
+  if (fs.existsSync(configExamplePath) && fs.existsSync(configSchemaPath)) {
+    const configExample = parseSimpleYaml(fs.readFileSync(configExamplePath, "utf8"));
+    const configSchema = readJson(configSchemaPath);
+    validateAgainstSchema(configExample, configSchema, "examples/config.yaml");
+  }
+
+  const stateExamplePath = path.join(repoRoot, "examples", "state.json");
+  const stateSchemaPath = path.join(repoRoot, "schemas", "state.schema.json");
+  if (fs.existsSync(stateExamplePath) && fs.existsSync(stateSchemaPath)) {
+    const stateExample = readJson(stateExamplePath);
+    const stateSchema = readJson(stateSchemaPath);
+    validateAgainstSchema(stateExample, stateSchema, "examples/state.json");
   }
 
   return {

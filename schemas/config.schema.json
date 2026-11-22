@@ -74,6 +74,13 @@
         "telemetry": { "type": "boolean", "const": false }
       },
       "additionalProperties": true
+    },
+    "session": {
+      "type": "object",
+      "properties": {
+        "context_mode": { "enum": ["auto", "compact", "full"] }
+      },
+      "additionalProperties": true
     }
   },
   "additionalProperties": true

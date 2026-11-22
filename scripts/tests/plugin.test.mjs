@@ -125,10 +125,50 @@ test("evaluateBashCommand blocks unsafe invariants and allows safe operations", 
     "allow",
   );
 
-  // 4. gh pr merge blocked; gh issue create / gh release create allowed
+  // 4. gh pr merge & gh api merge blocked; gh issue create / gh release create / read-only gh api allowed
   assert.equal(evaluateBashCommand("gh pr merge 42 --squash").decision, "deny");
+  assert.equal(evaluateBashCommand("gh api repos/owner/repo/pulls/1/merge -X PUT").decision, "deny");
+  assert.equal(evaluateBashCommand('gh api graphql -f query="mutation { mergePullRequest }"').decision, "deny");
+  assert.equal(evaluateBashCommand("gh api repos/owner/repo/pulls/1").decision, "allow");
   assert.equal(evaluateBashCommand('gh issue create --title "feat: test"').decision, "allow");
   assert.equal(evaluateBashCommand("gh release create v0.2.0").decision, "allow");
+
+  // 6. Env-prefix / wrapper bypasses & protected branch deletion blocked
+  assert.equal(
+    evaluateBashCommand("FOO=1 git push --force origin feat/1-test", {
+      currentBranch: "feat/1-test",
+      defaultBranch: "main",
+    }).decision,
+    "deny",
+  );
+  assert.equal(
+    evaluateBashCommand("env FOO=1 git push origin main", {
+      currentBranch: "feat/1-test",
+      defaultBranch: "main",
+    }).decision,
+    "deny",
+  );
+  assert.equal(
+    evaluateBashCommand('GITHUB_CONVENTION_ALLOW_NO_VERIFY=1 git commit --no-verify -m "fix: x"', {
+      stagedDiff: "",
+      env: {},
+    }).decision,
+    "deny",
+  );
+  assert.equal(
+    evaluateBashCommand("git push --delete origin main", {
+      currentBranch: "feat/1-test",
+      defaultBranch: "main",
+    }).decision,
+    "deny",
+  );
+  assert.equal(
+    evaluateBashCommand("git push origin :main", {
+      currentBranch: "feat/1-test",
+      defaultBranch: "main",
+    }).decision,
+    "deny",
+  );
 
   // 5. Staged secret blocked and redacted
   const fakeAwsKey = "AKIA" + "0123456789ABCDEF";

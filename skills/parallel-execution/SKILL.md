@@ -29,11 +29,13 @@ Never assume unlimited workers or spawn workers just to fill capacity. Effective
 
 ## Authority & Worker Contract
 
-- **Orchestrator** owns all branches, worktrees, rebases, commits, pushes, Issues, labels, dependencies, PRs, review-thread resolution, and shared Local State.
-- **Workers** (`agents/task-worker.md`) implement and run tests only. Workers must never commit, push, create/edit/close Issues, create PRs, merge, resolve review threads, or write shared Local State.
+- **Orchestrator** owns all Git and GitHub mutations: Issues (create/edit), Branches (create/switch), Worktrees, Commits, Pushes, PRs (create/edit), Releases/Tags, Rollbacks, labels, dependencies, review-thread resolution, and shared Local State.
+- **Workers** (`agents/task-worker.md`) and **Reviewers** (including external/companion reviewers such as `principles-reviewer`) must never perform undelegated Git or GitHub mutations.
 - Give each worker: single Issue, acceptance criteria, interface context, allowed scope, file ownership hints, and exact test commands.
 
-## Mandatory Worker Report (English Only)
+## Mandatory Worker Report
+
+Follow the unified language policy (`skills/using-github-convention/SKILL.md`): write report prose in Korean for Korean requests, English for English requests, or the user's explicitly requested language. Keep code, APIs, file paths, commands, technical identifiers, Conventional Commit prefixes, GitHub closing keywords (`Closes #...`), and status tokens (`completed | blocked | failed`, `PASS | FAIL`) verbatim.
 
 Require every worker to reply with this concise format (no secrets, no verbose reasoning):
 

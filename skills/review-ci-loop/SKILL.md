@@ -14,8 +14,8 @@ Handle straightforward review and CI fixes autonomously within bounded retries, 
 2. **Require explicit user approval first**:
    - Architecture changes, business-logic changes, or requirement changes requested in review.
 3. **After every fix**:
-   - Re-run impacted tests, quality gates, secret scan, and self-review (`agents/pr-reviewer.md`).
-   - Orchestrator commits and pushes to the existing PR branch.
+   - Re-run impacted tests, quality gates, secret scan, and self-review (`agents/pr-reviewer.md`, optionally incorporating `dev-principles` reviewer outputs if available in a single Orchestrator-coordinated pass).
+   - Orchestrator commits and pushes to the existing PR branch (reviewers and workers never commit or push).
 4. **Review thread resolution**:
    - Auto-resolve only simple review threads that are fully addressed and verified.
    - Leave design, architecture, or open discussion threads unresolved for human confirmation.

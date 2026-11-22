@@ -9,7 +9,7 @@ Analyze existing repository conventions before proposing any GitHub Issues, deco
 
 ## Convention Inspection
 
-1. Inspect existing project instructions, `.github/ISSUE_TEMPLATE/`, `config.yml`, `.github/pull_request_template.md`, commit/branch patterns, scripts, quality gates, labels, CI workflows, and release policy. Delegate read-only discovery to `agents/repo-analyzer.md` when helpful.
+1. Inspect existing project instructions, `.github/ISSUE_TEMPLATE/`, `config.yml`, `.github/pull_request_template.md`, commit/branch patterns, scripts, quality gates, labels, CI workflows, and release policy. Delegate read-only GitHub workflow discovery to `agents/repo-analyzer.md` when helpful (leaving deep code architecture analysis to `dev-principles` if co-installed).
 2. If project documents conflict with `.github-convention/config.yaml` or each other, show the conflicting sources, ask the user, and record the resolution so it is not asked again.
 
 ## Task Decomposition & Dependency DAG
