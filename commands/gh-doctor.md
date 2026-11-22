@@ -10,5 +10,5 @@ Run read-only diagnostics for the current repository:
 Steps:
 
 1. Verify `git --version`, repository root, default branch, and `gh auth status`.
-2. Inspect `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`, labels, CI workflows, and optional `.github-convention/config.yaml`.
+2. Inspect `.github/ISSUE_TEMPLATE/`, `.github/pull_request_template.md`, labels, CI workflows, optional `.github-convention/config.yaml`, and any detected companion plugin (`dev-principles`) boundary status.
 3. Report detected conventions, plugin/hook readiness, and any remediation steps without modifying files.

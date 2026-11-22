@@ -22,7 +22,7 @@ Keep Git mutations Orchestrator-owned, commit clean work units, pass all quality
 2. Run existing repository quality gates (format, lint, typecheck, build, unit/integration tests). New code-caused failures must be fixed, never bypassed.
    - **Pre-existing vs. New Gate Failures**: When a repository-wide check fails on untouched files, verify that the failure pre-exists on the base branch or outside your diff, run scoped checks on your changed files to confirm zero new regressions, and record the exact pre-existing failure scope in the PR body without editing unrelated files.
 3. Run secret scan on staged/branch changes (reuse existing scanner; block on likely real secrets).
-4. Inspect the complete diff against the base branch and perform self-review (delegate read-only review to `agents/pr-reviewer.md` when helpful).
+4. Inspect the complete diff against the base branch and perform self-review (delegate read-only GitHub workflow review to `agents/pr-reviewer.md` in a single pass; if `dev-principles` reviewer outputs from `principles-reviewer`, `architecture-reviewer`, or `security-reviewer` are also available, pass them to `pr-reviewer` without re-auditing design/architecture/security-design or triggering recursive reviewer calls).
 5. Fetch and rebase onto the latest target base branch (or default branch when no separate base branch is specified).
 6. Re-run tests impacted by the rebase.
 7. Verify Issue/PR title, body, labels, and links.

@@ -36,6 +36,9 @@ notifications:
 privacy:
   telemetry: false
 
+session:
+  context_mode: auto # auto | compact | full
+
 # Example Project overrides only a few values:
 # execution:
 #   max_parallel_agents: 2

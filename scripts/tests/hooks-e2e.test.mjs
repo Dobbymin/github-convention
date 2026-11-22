@@ -18,19 +18,22 @@ const runGit = (args, cwd) =>
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
 
-const runSessionHook = ({ cwd, env = {} }) =>
+const runSessionHook = ({ cwd, env = {}, input }) =>
   spawnSync(process.execPath, [SESSION_HOOK], {
     cwd,
+    input,
     env: { ...process.env, ...env },
     encoding: "utf8",
   });
 
-const runGuardHook = ({ command, cwd, env = {} }) => {
-  const payload = JSON.stringify({
-    tool_name: "Bash",
-    tool_input: { command },
-    cwd,
-  });
+const runGuardHook = ({ command, cwd, env = {}, rawInput }) => {
+  const payload =
+    rawInput ??
+    JSON.stringify({
+      tool_name: "Bash",
+      tool_input: { command },
+      cwd,
+    });
   return spawnSync(process.execPath, [GUARD_HOOK], {
     cwd,
     input: payload,
@@ -194,5 +197,105 @@ test("guard-bash.mjs subprocess enforces invariants against a real git repositor
     assert.equal(cleanCommit.stdout.trim(), "");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("session-start.mjs and guard-bash.mjs support Antigravity native hook stdin/stdout contracts", () => {
+  const nonGitDir = makeTempDir("gh-conv-agy-nongit-");
+  try {
+    const nonGitRes = runSessionHook({
+      cwd: REPO_ROOT,
+      env: { PLUGIN_ROOT: REPO_ROOT, CLAUDE_PLUGIN_ROOT: "", CURSOR_PLUGIN_ROOT: "" },
+      input: JSON.stringify({
+        hookEventName: "SessionStart",
+        cwd: nonGitDir,
+        workspacePaths: [nonGitDir],
+      }),
+    });
+    assert.equal(nonGitRes.status, 0);
+    assert.deepEqual(JSON.parse(nonGitRes.stdout), { injectSteps: [] });
+  } finally {
+    fs.rmSync(nonGitDir, { recursive: true, force: true });
+  }
+
+  const { root, workDir } = setupTempGitRepoWithOrigin();
+  const home = makeTempDir("gh-conv-agy-home-");
+  try {
+    // 1. SessionStart invoked with cwd=REPO_ROOT (Antigravity plugin dir) and workspacePaths=[workDir]
+    const standaloneRes = runSessionHook({
+      cwd: REPO_ROOT,
+      env: {
+        HOME: home,
+        PLUGIN_ROOT: REPO_ROOT,
+        CLAUDE_PLUGIN_ROOT: "",
+        CURSOR_PLUGIN_ROOT: "",
+      },
+      input: JSON.stringify({
+        hookEventName: "SessionStart",
+        cwd: workDir,
+        workspacePaths: [workDir],
+      }),
+    });
+    assert.equal(standaloneRes.status, 0);
+    const standaloneJson = JSON.parse(standaloneRes.stdout);
+    const standaloneMsg = standaloneJson.injectSteps[0].systemMessage.systemMessage;
+    assert.match(standaloneMsg, /zero-config git repository detected/);
+    assert.match(standaloneMsg, /using-github-convention/);
+
+    // Co-installed dev-principles in HOME -> deduplicated Antigravity injectSteps
+    fs.mkdirSync(path.join(home, ".agents", "skills", "dev-principles"), { recursive: true });
+    fs.writeFileSync(
+      path.join(home, ".agents", "skills", "dev-principles", "SKILL.md"),
+      "# dev-principles\n",
+    );
+    const coinstallRes = runSessionHook({
+      cwd: REPO_ROOT,
+      env: {
+        HOME: home,
+        PLUGIN_ROOT: REPO_ROOT,
+        CLAUDE_PLUGIN_ROOT: "",
+        CURSOR_PLUGIN_ROOT: "",
+      },
+      input: JSON.stringify({
+        hookEventName: "SessionStart",
+        cwd: workDir,
+        workspacePaths: [workDir],
+      }),
+    });
+    assert.equal(coinstallRes.status, 0);
+    const coinstallMsg = JSON.parse(coinstallRes.stdout).injectSteps[0].systemMessage.systemMessage;
+    assert.ok(coinstallMsg.length < standaloneMsg.length);
+    assert.match(coinstallMsg, /Companion detected: dev-principles/);
+
+    // 2. guard-bash.mjs Antigravity PreToolUse (run_command) deny & allow
+    const agyDenyMain = runGuardHook({
+      cwd: REPO_ROOT,
+      rawInput: JSON.stringify({
+        hookEventName: "PreToolUse",
+        cwd: workDir,
+        workspacePaths: [workDir],
+        toolCall: { name: "run_command", args: { CommandLine: "git push" } },
+      }),
+    });
+    assert.equal(agyDenyMain.status, 0);
+    const denyJson = JSON.parse(agyDenyMain.stdout);
+    assert.equal(denyJson.decision, "deny");
+    assert.match(denyJson.reason, /default branch/);
+
+    runGit(["checkout", "-b", "feat/2-agy"], workDir);
+    const agyAllowFeat = runGuardHook({
+      cwd: REPO_ROOT,
+      rawInput: JSON.stringify({
+        hookEventName: "PreToolUse",
+        cwd: workDir,
+        workspacePaths: [workDir],
+        toolCall: { name: "run_command", args: { CommandLine: "git push -u origin feat/2-agy" } },
+      }),
+    });
+    assert.equal(agyAllowFeat.status, 0);
+    assert.deepEqual(JSON.parse(agyAllowFeat.stdout), { decision: "allow" });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(home, { recursive: true, force: true });
   }
 });

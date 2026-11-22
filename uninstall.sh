@@ -1,9 +1,11 @@
 #!/usr/bin/env sh
 set -eu
 
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
 SKILLS_ROOT="$SCRIPT_DIR/skills"
+PLUGIN_ID="github-convention"
 MARKER_FILE=".github-convention-script-managed"
+MANIFEST_FILE=".github-convention-install-manifest"
 
 SCOPE="project"
 TARGET=""
@@ -21,6 +23,111 @@ Options:
   --dry-run                 Preview actions without removing files
   -h, --help                Show this help message
 EOF
+}
+
+canonicalize_path() {
+  INPUT_PATH="$1"
+  [ -n "$INPUT_PATH" ] || return 1
+  case "$INPUT_PATH" in
+    /*) CUR="$INPUT_PATH" ;;
+    *) CUR="$(pwd -P)/$INPUT_PATH" ;;
+  esac
+  if [ -d "$CUR" ] && [ ! -L "$CUR" ]; then
+    (CDPATH= cd -- "$CUR" 2>/dev/null && pwd -P) && return 0
+  fi
+  TAIL=""
+  while [ ! -d "$CUR" ] || [ -L "$CUR" ]; do
+    BASE="$(basename -- "$CUR")"
+    PARENT="$(dirname -- "$CUR")"
+    if [ "$PARENT" = "$CUR" ]; then
+      break
+    fi
+    if [ -z "$TAIL" ]; then
+      TAIL="$BASE"
+    else
+      TAIL="$BASE/$TAIL"
+    fi
+    CUR="$PARENT"
+  done
+  if [ -d "$CUR" ]; then
+    CANON_BASE="$(CDPATH= cd -- "$CUR" 2>/dev/null && pwd -P || printf '%s' "$CUR")"
+  else
+    CANON_BASE="$CUR"
+  fi
+  if [ -z "$TAIL" ]; then
+    printf '%s\n' "$CANON_BASE"
+  elif [ "$CANON_BASE" = "/" ]; then
+    printf '/%s\n' "$TAIL"
+  else
+    printf '%s/%s\n' "$CANON_BASE" "$TAIL"
+  fi
+}
+
+validate_skill_name() {
+  case "$1" in
+    ""|.|..|*/*)
+      echo "Unsafe skill name: $1" >&2
+      exit 1
+      ;;
+  esac
+}
+
+verify_dest_within_target() {
+  DEST_PATH="$1"
+  CANON_TARGET_DIR="$2"
+  DEST_PARENT="$(canonicalize_path "$(dirname -- "$DEST_PATH")")"
+  [ "$DEST_PARENT" = "$CANON_TARGET_DIR" ] || return 1
+  [ "$DEST_PATH" != "/" ] || return 1
+  [ "$DEST_PATH" != "$CANON_TARGET_DIR" ] || return 1
+  [ "$DEST_PATH" != "$SCRIPT_DIR" ] || return 1
+  return 0
+}
+
+is_owned_symlink() {
+  _OS_DEST="$1"
+  _OS_EXPECTED="$2"
+  _OS_LINK="$(readlink "$_OS_DEST")" || return 1
+  if [ "$_OS_LINK" = "$_OS_EXPECTED" ]; then
+    return 0
+  fi
+  case "$_OS_LINK" in
+    /*) _OS_RESOLVED="$_OS_LINK" ;;
+    *) _OS_RESOLVED="$(dirname -- "$_OS_DEST")/$_OS_LINK" ;;
+  esac
+  _OS_CANON_ACTUAL="$(canonicalize_path "$_OS_RESOLVED")"
+  _OS_CANON_EXPECTED="$(canonicalize_path "$_OS_EXPECTED")"
+  [ "$_OS_CANON_ACTUAL" = "$_OS_CANON_EXPECTED" ]
+}
+
+is_owned_copy_dir() {
+  DEST_PATH="$1"
+  SKILL_NAME="$2"
+  CANON_DEST_PATH="$3"
+  [ -d "$DEST_PATH" ] && [ ! -L "$DEST_PATH" ] || return 1
+  MARKER_PATH="$DEST_PATH/$MARKER_FILE"
+  [ -f "$MARKER_PATH" ] && [ ! -L "$MARKER_PATH" ] || return 1
+  if grep -qx "plugin=$PLUGIN_ID" "$MARKER_PATH" 2>/dev/null; then
+    if grep -q "^skill=" "$MARKER_PATH" 2>/dev/null; then
+      grep -qx "skill=$SKILL_NAME" "$MARKER_PATH" 2>/dev/null || return 1
+    fi
+    if grep -q "^install-path=" "$MARKER_PATH" 2>/dev/null; then
+      grep -qx "install-path=$CANON_DEST_PATH" "$MARKER_PATH" 2>/dev/null || return 1
+    fi
+    return 0
+  fi
+  if grep -qx "managed-by=install.sh" "$MARKER_PATH" 2>/dev/null && ! grep -q "^plugin=" "$MARKER_PATH" 2>/dev/null; then
+    if [ -f "$DEST_PATH/SKILL.md" ] && ! grep -qx "name: $SKILL_NAME" "$DEST_PATH/SKILL.md" 2>/dev/null; then
+      return 1
+    fi
+    return 0
+  fi
+  return 1
+}
+
+is_owned_manifest() {
+  MANIFEST_PATH="$1"
+  [ -f "$MANIFEST_PATH" ] && [ ! -L "$MANIFEST_PATH" ] || return 1
+  grep -qx "plugin=$PLUGIN_ID" "$MANIFEST_PATH" 2>/dev/null
 }
 
 while [ "$#" -gt 0 ]; do
@@ -66,42 +173,94 @@ if [ -z "$TARGET" ]; then
   esac
 fi
 
+CANON_TARGET="$(canonicalize_path "$TARGET")"
+if [ -z "$CANON_TARGET" ] || [ "$CANON_TARGET" = "/" ] || [ "$CANON_TARGET" = "$SCRIPT_DIR" ] || [ "$CANON_TARGET" = "$SKILLS_ROOT" ]; then
+  echo "Refusing unsafe target directory: $TARGET" >&2
+  exit 1
+fi
+
+MANIFEST_PATH="$CANON_TARGET/$MANIFEST_FILE"
+CONFLICT_COUNT=0
+
+if [ -e "$MANIFEST_PATH" ] || [ -L "$MANIFEST_PATH" ]; then
+  if ! is_owned_manifest "$MANIFEST_PATH"; then
+    echo "Conflict: refusing to remove unmanaged manifest file at $MANIFEST_PATH." >&2
+    CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+  fi
+fi
+
+# Pass 1: Pre-flight ownership and path containment verification (zero deletions)
 for SKILL_DIR in "$SKILLS_ROOT"/*; do
   [ -d "$SKILL_DIR" ] || continue
   [ -f "$SKILL_DIR/SKILL.md" ] || continue
 
   SKILL_NAME="$(basename "$SKILL_DIR")"
-  DEST="$TARGET/$SKILL_NAME"
+  validate_skill_name "$SKILL_NAME"
+  DEST="$CANON_TARGET/$SKILL_NAME"
+
+  if [ ! -e "$DEST" ] && [ ! -L "$DEST" ]; then
+    continue
+  fi
+
+  if ! verify_dest_within_target "$DEST" "$CANON_TARGET"; then
+    echo "Conflict: destination path escapes target directory ($DEST)." >&2
+    CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+    continue
+  fi
+
+  if [ -L "$DEST" ]; then
+    if ! is_owned_symlink "$DEST" "$SKILL_DIR"; then
+      LINK_TARGET="$(readlink "$DEST" 2>/dev/null || printf '<unreadable>')"
+      echo "Conflict: refusing to remove unmanaged symlink at $DEST (points to: $LINK_TARGET)." >&2
+      CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+    fi
+  elif ! is_owned_copy_dir "$DEST" "$SKILL_NAME" "$DEST"; then
+    echo "Conflict: refusing to remove unmanaged path at $DEST (missing valid $MARKER_FILE for $PLUGIN_ID)." >&2
+    CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+  fi
+done
+
+if [ "$CONFLICT_COUNT" -gt 0 ]; then
+  echo "Aborted uninstall: $CONFLICT_COUNT conflict(s) detected. No files were removed." >&2
+  exit 1
+fi
+
+# Pass 2: Preview or remove verified owned paths (re-verify right before deletion)
+for SKILL_DIR in "$SKILLS_ROOT"/*; do
+  [ -d "$SKILL_DIR" ] || continue
+  [ -f "$SKILL_DIR/SKILL.md" ] || continue
+
+  SKILL_NAME="$(basename "$SKILL_DIR")"
+  DEST="$CANON_TARGET/$SKILL_NAME"
 
   if [ ! -e "$DEST" ] && [ ! -L "$DEST" ]; then
     continue
   fi
 
   if [ -L "$DEST" ]; then
-    LINK_TARGET="$(readlink "$DEST")"
-    case "$LINK_TARGET" in
-      "$SKILL_DIR"|*"/skills/$SKILL_NAME")
-        if [ "$DRY_RUN" -eq 1 ]; then
-          echo "[dry-run] Would remove symlink: $DEST"
-        else
-          rm "$DEST"
-          echo "Removed symlink: $DEST"
-        fi
-        ;;
-      *)
-        echo "Refusing to remove unmanaged symlink: $DEST -> $LINK_TARGET" >&2
-        exit 1
-        ;;
-    esac
-  elif [ -d "$DEST" ] && [ -f "$DEST/$MARKER_FILE" ]; then
     if [ "$DRY_RUN" -eq 1 ]; then
-      echo "[dry-run] Would remove managed directory: $DEST"
+      echo "[dry-run] Would remove owned symlink: $DEST"
     else
+      verify_dest_within_target "$DEST" "$CANON_TARGET" && is_owned_symlink "$DEST" "$SKILL_DIR"
+      rm "$DEST"
+      echo "Removed symlink: $DEST"
+    fi
+  else
+    if [ "$DRY_RUN" -eq 1 ]; then
+      echo "[dry-run] Would remove owned directory: $DEST"
+    else
+      verify_dest_within_target "$DEST" "$CANON_TARGET" && is_owned_copy_dir "$DEST" "$SKILL_NAME" "$DEST"
       rm -rf "$DEST"
       echo "Removed managed directory: $DEST"
     fi
-  else
-    echo "Refusing to remove unmanaged path: $DEST" >&2
-    exit 1
   fi
 done
+
+if [ -f "$MANIFEST_PATH" ] && is_owned_manifest "$MANIFEST_PATH"; then
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "[dry-run] Would remove ownership manifest: $MANIFEST_PATH"
+  else
+    rm "$MANIFEST_PATH"
+    echo "Removed ownership manifest: $MANIFEST_PATH"
+  fi
+fi

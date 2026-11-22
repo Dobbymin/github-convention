@@ -199,6 +199,39 @@ export const evaluateBashCommand = (command, options = {}) => {
   return { decision: "allow" };
 };
 
+export const handleGuardHookInput = (input, options = {}) => {
+  const isAntigravity = Boolean(
+    input?.toolCall || input?.hookEventName === "PreToolUse" || Array.isArray(input?.workspacePaths),
+  );
+  const command = input?.tool_input?.command ?? input?.toolCall?.args?.CommandLine ?? "";
+  const cwd =
+    options.cwd ??
+    input?.cwd ??
+    (Array.isArray(input?.workspacePaths) ? input.workspacePaths[0] : undefined) ??
+    process.cwd();
+
+  const result = evaluateBashCommand(command, { ...options, cwd });
+
+  if (isAntigravity) {
+    if (result.decision === "deny") {
+      return { decision: "deny", reason: result.reason };
+    }
+    return { decision: "allow" };
+  }
+
+  if (result.decision === "deny") {
+    return {
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: result.reason,
+      },
+    };
+  }
+
+  return null;
+};
+
 const isDirectExecution =
   process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
@@ -207,19 +240,9 @@ if (isDirectExecution) {
     const raw = fs.readFileSync(0, "utf8").trim();
     if (!raw) process.exit(0);
     const input = JSON.parse(raw);
-    const command = input?.tool_input?.command ?? "";
-    const cwd = input?.cwd ?? process.cwd();
-    const result = evaluateBashCommand(command, { cwd });
-    if (result.decision === "deny") {
-      process.stdout.write(
-        `${JSON.stringify({
-          hookSpecificOutput: {
-            hookEventName: "PreToolUse",
-            permissionDecision: "deny",
-            permissionDecisionReason: result.reason,
-          },
-        })}\n`,
-      );
+    const output = handleGuardHookInput(input);
+    if (output) {
+      process.stdout.write(`${JSON.stringify(output)}\n`);
     }
   } catch {
     // Fail open only on malformed stdin; command safety checks are self-contained.

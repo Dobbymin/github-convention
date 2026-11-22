@@ -261,6 +261,41 @@ export const validateRepo = (repoRoot = REPO_ROOT) => {
     }
   }
 
+  // Validate optional root hooks.json (Antigravity native hooks)
+  const rootHooksJsonPath = path.join(repoRoot, "hooks.json");
+  if (fs.existsSync(rootHooksJsonPath)) {
+    const rootHooks = readJson(rootHooksJsonPath);
+    if (!rootHooks || typeof rootHooks !== "object" || Array.isArray(rootHooks)) {
+      throw new Error("hooks.json: must be a top-level JSON object");
+    }
+    for (const [hookName, hookConfig] of Object.entries(rootHooks)) {
+      if (!hookConfig || typeof hookConfig !== "object" || Array.isArray(hookConfig)) {
+        throw new Error(`hooks.json: "${hookName}" must be an object`);
+      }
+      for (const [eventName, entries] of Object.entries(hookConfig)) {
+        if (eventName === "enabled") continue;
+        if (!Array.isArray(entries)) {
+          throw new Error(`hooks.json: ${hookName}.${eventName} must be an array`);
+        }
+        for (const entry of entries) {
+          const handlers = Array.isArray(entry.hooks) ? entry.hooks : [entry];
+          for (const handler of handlers) {
+            const cmd = String(handler?.command ?? "");
+            const relMatch = cmd.match(/\.(?:\/|\\)hooks(?:\/|\\)([^\s"']+)/);
+            if (relMatch) {
+              assertPathExists(
+                repoRoot,
+                path.join("hooks", relMatch[1]),
+                "hooks.json",
+                `${hookName}.${eventName}`,
+              );
+            }
+          }
+        }
+      }
+    }
+  }
+
   return {
     version: expectedVersion,
     manifests: MANIFEST_PATHS.length,
