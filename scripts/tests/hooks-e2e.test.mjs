@@ -160,6 +160,19 @@ test("guard-bash.mjs subprocess enforces invariants against a real git repositor
       "deny",
     );
 
+    // auto_merge_on_ci_pass: false in .github-convention/config.yaml disables gh pr merge
+    fs.writeFileSync(
+      path.join(workDir, ".github-convention", "config.yaml"),
+      "schema_version: 1\ngithub:\n  default_branch: develop\n  auto_merge_on_ci_pass: false\n",
+    );
+    const manualOnlyMerge = runGuardHook({
+      command: "gh pr merge 1 --squash",
+      cwd: workDir,
+    });
+    const manualDeny = JSON.parse(manualOnlyMerge.stdout);
+    assert.equal(manualDeny.hookSpecificOutput.permissionDecision, "deny");
+    assert.match(manualDeny.hookSpecificOutput.permissionDecisionReason, /auto_merge_on_ci_pass: false/);
+
     const leasePush = runGuardHook({
       command: "git push --force-with-lease origin feat/1-e2e",
       cwd: workDir,

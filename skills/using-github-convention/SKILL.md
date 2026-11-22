@@ -50,10 +50,11 @@ Never treat `--yes`, non-interactive mode, a previous ambiguous reply, or silenc
 
 ## Git & Merge Authority
 
-- Orchestrator holds exclusive authority over all Git and GitHub mutations: creating/editing Issues, creating/switching Branches, managing Worktrees, Committing, Pushing, creating/editing PRs, resolving review threads, creating Releases/Tags, and executing Rollbacks.
+- Orchestrator holds exclusive authority over all Git and GitHub mutations: creating/editing Issues, creating/switching Branches, managing Worktrees, Committing, Pushing, creating/editing PRs, resolving review threads, merging PRs after CI passes, creating Releases/Tags, and executing Rollbacks.
 - Workers (`agents/task-worker.md`), Reviewers (`agents/pr-reviewer.md`, `agents/repo-analyzer.md`), and any companion/external reviewers (such as `dev-principles`'s `principles-reviewer`, `architecture-reviewer`, and `security-reviewer`) must never perform undelegated Git or GitHub mutations, even when co-installed.
 - Prefer the user's existing `gh auth` session; use a connected Agent GitHub tool only when `gh` cannot perform the operation.
-- Never push directly to the protected default branch. Never merge a PR; the user owns Merge.
+- Never push directly to the protected default branch.
+- By default, after `git push` and PR creation, Orchestrator monitors tests/CI and merges the PR (`gh pr merge`) once all required checks pass and zero unresolved blockers remain (never use `--admin` or merge failing/pending/Draft PRs). Set `github.auto_merge_on_ci_pass: false` in `.github-convention/config.yaml` when manual merge is desired.
 
 ## Companion Plugin Boundaries
 

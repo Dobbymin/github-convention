@@ -95,7 +95,7 @@ const parseGitSubcommand = (tokens) => {
   return null;
 };
 
-const readConfiguredDefaultBranch = (startDir) => {
+const readGithubConfig = (startDir) => {
   let current = path.resolve(startDir);
   while (true) {
     const cfgPath = path.join(current, ".github-convention", "config.yaml");
@@ -104,25 +104,146 @@ const readConfiguredDefaultBranch = (startDir) => {
         const text = fs.readFileSync(cfgPath, "utf8");
         const githubSection = text.match(/^github:\s*\r?\n((?:[ \t]+.*\r?\n?)*)/m);
         if (githubSection) {
-          const branchMatch = githubSection[1].match(/^\s+default_branch:\s*["']?([^\s"'#]+)["']?/m);
+          const section = githubSection[1];
+          const branchMatch = section.match(/^\s+default_branch:\s*["']?([^\s"'#]+)["']?/m);
           const configured = branchMatch ? branchMatch[1] : "";
-          if (configured && configured !== "detect") {
-            return configured;
-          }
+          const autoMergeMatch = section.match(/^\s+auto_merge_on_ci_pass:\s*(true|false)/im);
+          return {
+            defaultBranch: configured && configured !== "detect" ? configured : null,
+            autoMergeOnCiPass: autoMergeMatch ? autoMergeMatch[1].toLowerCase() === "true" : true,
+          };
         }
       }
     } catch {
-      // Ignore unreadable config; fallback to git/default detection.
+      // Ignore unreadable config; fallback to defaults.
     }
     if (fs.existsSync(path.join(current, ".git"))) {
-      return null;
+      return { defaultBranch: null, autoMergeOnCiPass: true };
     }
     const parent = path.dirname(current);
     if (parent === current) {
-      return null;
+      return { defaultBranch: null, autoMergeOnCiPass: true };
     }
     current = parent;
   }
+};
+
+const extractPrMergeTarget = (args) => {
+  const valueFlags = new Set([
+    "-b",
+    "--body",
+    "-F",
+    "--body-file",
+    "-t",
+    "--subject",
+    "--match-head-commit",
+    "-R",
+    "--repo",
+  ]);
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (valueFlags.has(arg)) {
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith("-")) continue;
+    return arg;
+  }
+  return null;
+};
+
+const inspectPrMergeReadiness = (prRef, cwd) => {
+  try {
+    const ghArgs = ["pr", "view"];
+    if (prRef) ghArgs.push(prRef);
+    ghArgs.push("--json", "isDraft,state,statusCheckRollup");
+    const raw = execFileSync("gh", ghArgs, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const parsed = JSON.parse(raw);
+    return {
+      ok: true,
+      isDraft: Boolean(parsed?.isDraft),
+      state: parsed?.state ?? "OPEN",
+      checks: Array.isArray(parsed?.statusCheckRollup) ? parsed.statusCheckRollup : [],
+    };
+  } catch {
+    return { ok: false, isDraft: false, state: "UNKNOWN", checks: [] };
+  }
+};
+
+const FAILING_CONCLUSIONS = new Set([
+  "FAILURE",
+  "TIMED_OUT",
+  "CANCELLED",
+  "ACTION_REQUIRED",
+  "STARTUP_FAILURE",
+  "STALE",
+]);
+
+const evaluatePrMerge = (args, { cwd, prState, autoMergeOnCiPass }) => {
+  if (autoMergeOnCiPass === false) {
+    return {
+      decision: "deny",
+      reason:
+        "Blocked: PR merge is disabled by `github.auto_merge_on_ci_pass: false` in `.github-convention/config.yaml`.",
+    };
+  }
+  if (args.includes("--admin")) {
+    return {
+      decision: "deny",
+      reason: "Blocked: `gh pr merge --admin` is forbidden. Never bypass branch protection.",
+    };
+  }
+
+  const prRef = extractPrMergeTarget(args);
+  const state = prState ?? inspectPrMergeReadiness(prRef, cwd);
+  if (!state?.ok) {
+    return {
+      decision: "deny",
+      reason:
+        "Blocked: could not verify PR CI checks via `gh pr view`. Confirm CI checks pass before merging.",
+    };
+  }
+  if (state.isDraft) {
+    return {
+      decision: "deny",
+      reason: "Blocked: cannot merge a Draft PR. Mark PR ready and verify CI passes first.",
+    };
+  }
+
+  const checks = Array.isArray(state.checks) ? state.checks : [];
+  const failing = [];
+  const pending = [];
+  for (const check of checks) {
+    const name = check?.name || check?.context || "check";
+    const conclusion = String(check?.conclusion ?? "").toUpperCase();
+    const status = String(check?.status ?? "").toUpperCase();
+    const checkState = String(check?.state ?? "").toUpperCase();
+
+    if (FAILING_CONCLUSIONS.has(conclusion) || checkState === "FAILURE" || checkState === "ERROR") {
+      failing.push(name);
+    } else if ((status && status !== "COMPLETED") || checkState === "PENDING" || checkState === "EXPECTED") {
+      pending.push(name);
+    }
+  }
+
+  if (failing.length > 0) {
+    return {
+      decision: "deny",
+      reason: `Blocked: cannot merge PR with failing CI check(s): ${failing.join(", ")}.`,
+    };
+  }
+  if (pending.length > 0 && !args.includes("--auto")) {
+    return {
+      decision: "deny",
+      reason: `Blocked: cannot merge PR while CI check(s) are still pending (${pending.join(", ")}). Wait for CI pass or use \`--auto\`.`,
+    };
+  }
+
+  return { decision: "allow" };
 };
 
 const runGit = (args, cwd) => {
@@ -195,17 +316,24 @@ export const evaluateBashCommand = (command, options = {}) => {
   const cwd = options.cwd ?? process.cwd();
   const segments = splitSubcommands(command);
 
+  const ghConfig = readGithubConfig(cwd);
+
   for (const segment of segments) {
     const rawTokens = tokenize(segment);
     const tokens = stripCommandPrefixes(rawTokens);
     if (tokens.length === 0) continue;
 
-    // 4. Never allow `gh pr merge` or `gh api .../pulls/.../merge` (user owns merge).
+    // 4. Allow `gh pr merge` only after CI checks pass (fail-closed); block `gh api` merge bypasses.
     if (tokens[0] === "gh" && tokens[1] === "pr" && tokens[2] === "merge") {
-      return {
-        decision: "deny",
-        reason: "Blocked: `gh pr merge` is forbidden. The user owns PR merging.",
-      };
+      const mergeResult = evaluatePrMerge(tokens.slice(3), {
+        cwd,
+        prState: options.prState,
+        autoMergeOnCiPass: options.autoMergeOnCiPass ?? ghConfig.autoMergeOnCiPass,
+      });
+      if (mergeResult.decision === "deny") {
+        return mergeResult;
+      }
+      continue;
     }
     if (
       tokens[0] === "gh" &&
@@ -214,7 +342,7 @@ export const evaluateBashCommand = (command, options = {}) => {
     ) {
       return {
         decision: "deny",
-        reason: "Blocked: merging PRs via `gh api` is forbidden. The user owns PR merging.",
+        reason: "Blocked: merging PRs via `gh api` is forbidden. Use `gh pr merge` after CI checks pass.",
       };
     }
 
@@ -253,7 +381,7 @@ export const evaluateBashCommand = (command, options = {}) => {
 
       // 2. Block direct push or deletion push to default/configured protected branch (or main/master).
       const defaultBranch = options.defaultBranch ?? detectDefaultBranch(cwd);
-      const configuredBranch = options.configuredDefaultBranch ?? readConfiguredDefaultBranch(cwd);
+      const configuredBranch = options.configuredDefaultBranch ?? ghConfig.defaultBranch;
       const protectedBranches = new Set([defaultBranch, "main", "master"]);
       if (configuredBranch) {
         protectedBranches.add(configuredBranch);

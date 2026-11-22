@@ -244,7 +244,8 @@ test("PR reviewer, repo analyzer, task worker, skills, and README preserve separ
   assert.match(usingSkill, /Output & Report Language/);
   assert.match(usingSkill, /principles-reviewer/);
   assert.match(usingSkill, /Never push directly to the protected default branch/);
-  assert.match(usingSkill, /Never merge a PR/);
+  assert.match(usingSkill, /auto_merge_on_ci_pass/);
+  assert.match(usingSkill, /--admin/);
 
   const parallelSkill = fs.readFileSync(
     path.join(REPO_ROOT, "skills", "parallel-execution", "SKILL.md"),

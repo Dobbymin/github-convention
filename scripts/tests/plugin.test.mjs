@@ -125,8 +125,79 @@ test("evaluateBashCommand blocks unsafe invariants and allows safe operations", 
     "allow",
   );
 
-  // 4. gh pr merge & gh api merge blocked; gh issue create / gh release create / read-only gh api allowed
-  assert.equal(evaluateBashCommand("gh pr merge 42 --squash").decision, "deny");
+  // 4. CI-gated gh pr merge & gh api merge blocked; gh issue create / gh release create / read-only gh api allowed
+  assert.equal(
+    evaluateBashCommand("gh pr merge 42 --squash", {
+      prState: {
+        ok: true,
+        isDraft: false,
+        state: "OPEN",
+        checks: [{ name: "CI/verify", status: "COMPLETED", conclusion: "SUCCESS" }],
+      },
+    }).decision,
+    "allow",
+  );
+  assert.equal(
+    evaluateBashCommand("gh pr merge 42 --auto --squash", {
+      prState: {
+        ok: true,
+        isDraft: false,
+        state: "OPEN",
+        checks: [{ name: "CI/verify", status: "IN_PROGRESS", conclusion: "" }],
+      },
+    }).decision,
+    "allow",
+  );
+  assert.equal(
+    evaluateBashCommand("gh pr merge 42 --squash", {
+      prState: {
+        ok: true,
+        isDraft: false,
+        state: "OPEN",
+        checks: [{ name: "CI/verify", status: "COMPLETED", conclusion: "FAILURE" }],
+      },
+    }).decision,
+    "deny",
+  );
+  assert.equal(
+    evaluateBashCommand("gh pr merge 42 --squash", {
+      prState: {
+        ok: true,
+        isDraft: false,
+        state: "OPEN",
+        checks: [{ name: "CI/verify", status: "IN_PROGRESS", conclusion: "" }],
+      },
+    }).decision,
+    "deny",
+  );
+  assert.equal(
+    evaluateBashCommand("gh pr merge 42 --squash", {
+      prState: { ok: true, isDraft: true, state: "OPEN", checks: [] },
+    }).decision,
+    "deny",
+  );
+  assert.equal(
+    evaluateBashCommand("gh pr merge 42 --squash", { prState: { ok: false } }).decision,
+    "deny",
+  );
+  assert.equal(
+    evaluateBashCommand("gh pr merge 42 --admin --squash", {
+      prState: { ok: true, isDraft: false, state: "OPEN", checks: [] },
+    }).decision,
+    "deny",
+  );
+  assert.equal(
+    evaluateBashCommand("gh pr merge 42 --squash", {
+      autoMergeOnCiPass: false,
+      prState: {
+        ok: true,
+        isDraft: false,
+        state: "OPEN",
+        checks: [{ name: "CI/verify", status: "COMPLETED", conclusion: "SUCCESS" }],
+      },
+    }).decision,
+    "deny",
+  );
   assert.equal(evaluateBashCommand("gh api repos/owner/repo/pulls/1/merge -X PUT").decision, "deny");
   assert.equal(evaluateBashCommand('gh api graphql -f query="mutation { mergePullRequest }"').decision, "deny");
   assert.equal(evaluateBashCommand("gh api repos/owner/repo/pulls/1").decision, "allow");

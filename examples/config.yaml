@@ -18,6 +18,8 @@ github:
   auth_preference: gh # gh first; connected Agent tool fallback
   default_branch: detect
   create_draft_pr: false
+  auto_merge_on_ci_pass: true
+  merge_method: squash # squash | merge | rebase
   require_issue_approval: true
   require_release_approval: true
 

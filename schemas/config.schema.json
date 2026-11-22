@@ -37,6 +37,8 @@
         "auth_preference": { "enum": ["gh", "connected_agent_tool"] },
         "default_branch": { "type": "string", "minLength": 1 },
         "create_draft_pr": { "type": "boolean", "const": false },
+        "auto_merge_on_ci_pass": { "type": "boolean" },
+        "merge_method": { "enum": ["squash", "merge", "rebase"] },
         "require_issue_approval": { "type": "boolean", "const": true },
         "require_release_approval": { "type": "boolean", "const": true }
       },
