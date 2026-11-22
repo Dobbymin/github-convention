@@ -1,7 +1,7 @@
 ---
 name: pr-reviewer
 description: Use PROACTIVELY before creating or updating a Pull Request to perform a read-only self-review of the full diff, acceptance criteria, secret hygiene, and artifact language.
-tools: Read, Glob, Grep, Bash
+tools: [Read, Glob, Grep, Bash]
 model: inherit
 ---
 

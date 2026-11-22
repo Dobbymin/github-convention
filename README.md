@@ -22,6 +22,12 @@
 ### 1. Claude Code 마켓플레이스 설치
 
 ```text
+/plugin install github-convention --marketplace Dobbymin/github-convention
+```
+
+또는 마켓플레이스 등록 후 설치할 수 있습니다.
+
+```text
 /plugin marketplace add Dobbymin/github-convention
 /plugin install github-convention
 ```
@@ -31,7 +37,7 @@
 저장소 루트에 플랫폼별 매니페스트를 함께 둡니다.
 
 - Claude Code: [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json), [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json)
-- Codex: [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json)
+- Codex: [`.codex-plugin/plugin.json`](.codex-plugin/plugin.json), [`.agents/plugins/marketplace.json`](.agents/plugins/marketplace.json)
 - Cursor: [`.cursor-plugin/plugin.json`](.cursor-plugin/plugin.json)
 - Antigravity: [`.antigravity-plugin/plugin.json`](.antigravity-plugin/plugin.json)
 - Gemini CLI: [`gemini-extension.json`](gemini-extension.json)

@@ -1,7 +1,7 @@
 ---
 name: task-worker
 description: Use when delegating a single scoped implementation and testing task inside an isolated workspace or git worktree.
-tools: Read, Edit, Write, Glob, Grep, Bash
+tools: [Read, Edit, Write, Glob, Grep, Bash]
 model: inherit
 ---
 
