@@ -10,5 +10,11 @@
   "repository": "https://github.com/Dobbymin/github-convention",
   "license": "MIT",
   "keywords": ["github", "git", "workflow", "convention", "issues", "pr", "agent-skill"],
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "GitHub Convention",
+    "shortDescription": "Issue-driven GitHub workflow skills, subagents, and safety hooks",
+    "category": "Developer Tools",
+    "logo": "./assets/icon.png"
+  }
 }

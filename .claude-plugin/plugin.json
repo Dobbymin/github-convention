@@ -9,5 +9,6 @@
   "homepage": "https://github.com/Dobbymin/github-convention",
   "repository": "https://github.com/Dobbymin/github-convention",
   "license": "MIT",
+  "icon": "./assets/icon.png",
   "keywords": ["github", "git", "workflow", "convention", "issues", "pr", "agent-skill"]
 }
