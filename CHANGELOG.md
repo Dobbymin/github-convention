@@ -4,6 +4,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-22
+
+### Added
+
+- Added Codex marketplace manifest (`.agents/plugins/marketplace.json`) and `interface` metadata in `.codex-plugin/plugin.json`.
+- Added 512x512 RGBA plugin icon (`assets/icon.png`) referenced by Claude Code, Antigravity, and Codex manifests, with PNG dimension checks in `scripts/validate.mjs`.
+- Added real subprocess and temporary Git repository E2E tests for `session-start.mjs` and `guard-bash.mjs` in `scripts/tests/hooks-e2e.test.mjs`.
+- Documented pre-existing vs. new gate failure separation, non-default target base branch handling in `skills/git-pr-workflow/SKILL.md`, and label reuse/creation approval rules in `skills/issue-planning/SKILL.md`.
+
+### Fixed
+
+- Removed platform-specific `tools` frontmatter from `agents/*.md` so Gemini CLI extension loading succeeds with zero `[ExtensionManager]` validation errors while preserving Claude Code and Antigravity compatibility.
+- Set `contextFileName` in `gemini-extension.json` to `skills/using-github-convention/SKILL.md` so repository-internal `GEMINI.md`/`AGENTS.md` is not injected into target projects.
+
 ## [0.2.0] - 2026-11-22
 
 ### Changed
