@@ -370,6 +370,45 @@ test("16-scenario ownership, forged marker, pre-deletion re-verification, and rm
       false,
     );
 
+    // Retired/orphan manifest entry pruning & tamper protection (Issue #104)
+    const orphanTarget = path.join(tempDir, "s17-orphan-manifest");
+    runInstaller({ target: orphanTarget, mode: "copy" });
+    const canonOrphanTarget = canonicalizePath(orphanTarget);
+    const retiredName = "retired-legacy-skill";
+    const retiredDir = path.join(canonOrphanTarget, retiredName);
+    const retiredExpectedSource = path.join(canonicalizePath(REPO_ROOT), "skills", retiredName);
+    fs.mkdirSync(retiredDir, { recursive: true });
+    fs.writeFileSync(path.join(retiredDir, "SKILL.md"), `---\nname: ${retiredName}\n---\n`);
+    fs.writeFileSync(
+      path.join(retiredDir, ".github-convention-script-managed"),
+      `schema_version=1\nplugin=github-convention\nmanaged-by=scripts/install.mjs\ninstall-mode=copy\nskill=${retiredName}\ninstall-path=${retiredDir}\nsource=${retiredExpectedSource}\n`,
+    );
+    const orphanManifest = path.join(canonOrphanTarget, ".github-convention-install-manifest");
+    fs.appendFileSync(orphanManifest, `entry|${retiredName}|copy|${retiredDir}|${retiredExpectedSource}\n`);
+
+    // If user added a custom file to the retired skill directory, installer update must refuse to prune it
+    fs.writeFileSync(path.join(retiredDir, "user-keep.txt"), "keep\n");
+    assert.throws(() => runInstaller({ target: orphanTarget, mode: "copy" }), /refusing to remove unmanaged retired directory/);
+    assert.equal(fs.existsSync(path.join(retiredDir, "user-keep.txt")), true);
+
+    // Once clean (owned by github-convention), installer update prunes the retired skill and refreshes manifest
+    fs.unlinkSync(path.join(retiredDir, "user-keep.txt"));
+    const pruneUpdateRes = runInstaller({ target: orphanTarget, mode: "copy" });
+    assert.equal(pruneUpdateRes.ok, true);
+    assert.equal(fs.existsSync(retiredDir), false);
+    assert.equal(fs.readFileSync(orphanManifest, "utf8").includes(retiredName), false);
+
+    // Re-create retired skill and test runUninstaller prunes it cleanly too
+    fs.mkdirSync(retiredDir, { recursive: true });
+    fs.writeFileSync(path.join(retiredDir, "SKILL.md"), `---\nname: ${retiredName}\n---\n`);
+    fs.writeFileSync(
+      path.join(retiredDir, ".github-convention-script-managed"),
+      `schema_version=1\nplugin=github-convention\nmanaged-by=scripts/install.mjs\ninstall-mode=copy\nskill=${retiredName}\ninstall-path=${retiredDir}\nsource=${retiredExpectedSource}\n`,
+    );
+    fs.appendFileSync(orphanManifest, `entry|${retiredName}|copy|${retiredDir}|${retiredExpectedSource}\n`);
+    runUninstaller({ target: orphanTarget });
+    assert.equal(fs.existsSync(retiredDir), false);
+
     // POSIX shell (install.sh / uninstall.sh) explicit check for forged marker, unexpected file inside copy dir, and pre-deletion abort
     if (process.platform !== "win32") {
       const shTarget = path.join(tempDir, "sh-matrix");
@@ -436,6 +475,31 @@ test("16-scenario ownership, forged marker, pre-deletion re-verification, and rm
       assert.notEqual(shRaceInstallUpdate.status, 0);
       assert.match(shRaceInstallUpdate.stderr, /Directory ownership verification failed/);
       assert.equal(fs.existsSync(path.join(shRaceSecond, "race-injected.txt")), true);
+
+      // POSIX install.sh / uninstall.sh retired manifest entry pruning & tamper protection (Issue #104)
+      const shOrphanTarget = path.join(tempDir, "sh-orphan");
+      assert.equal(runPosixScript(INSTALL_SH, ["--target", shOrphanTarget, "--copy"]).status, 0);
+      const canonShOrphan = canonicalizePath(shOrphanTarget);
+      const shRetiredDir = path.join(canonShOrphan, retiredName);
+      fs.mkdirSync(shRetiredDir, { recursive: true });
+      fs.writeFileSync(path.join(shRetiredDir, "SKILL.md"), `---\nname: ${retiredName}\n---\n`);
+      fs.writeFileSync(
+        path.join(shRetiredDir, ".github-convention-script-managed"),
+        `schema_version=1\nplugin=github-convention\nmanaged-by=install.sh\ninstall-mode=copy\nskill=${retiredName}\ninstall-path=${shRetiredDir}\nsource=${retiredExpectedSource}\n`,
+      );
+      fs.appendFileSync(
+        path.join(canonShOrphan, ".github-convention-install-manifest"),
+        `entry|${retiredName}|copy|${shRetiredDir}|${retiredExpectedSource}\n`,
+      );
+      fs.writeFileSync(path.join(shRetiredDir, "user-keep.txt"), "keep\n");
+      const shOrphanRefused = runPosixScript(UNINSTALL_SH, ["--target", shOrphanTarget]);
+      assert.notEqual(shOrphanRefused.status, 0);
+      assert.equal(fs.existsSync(path.join(shRetiredDir, "user-keep.txt")), true);
+
+      fs.unlinkSync(path.join(shRetiredDir, "user-keep.txt"));
+      const shOrphanUpdateOk = runPosixScript(INSTALL_SH, ["--target", shOrphanTarget, "--copy"]);
+      assert.equal(shOrphanUpdateOk.status, 0, shOrphanUpdateOk.stderr);
+      assert.equal(fs.existsSync(shRetiredDir), false);
     }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

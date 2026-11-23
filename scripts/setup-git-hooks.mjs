@@ -23,3 +23,6 @@ if (!existsSync(resolve(hooksDirectory, "pre-commit"))) {
 execFileSync("git", ["-C", repositoryRoot, "config", "--local", "core.hooksPath", ".githooks"], {
   stdio: "inherit",
 });
+execFileSync("git", ["-C", repositoryRoot, "config", "--local", "fetch.prune", "true"], {
+  stdio: "inherit",
+});

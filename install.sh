@@ -75,11 +75,19 @@ validate_skill_name() {
   esac
 }
 
+is_safe_skill_name() {
+  case "$1" in
+    ""|.|..|*/*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
 verify_dest_within_target() {
   DEST_PATH="$1"
   CANON_TARGET_DIR="$2"
   EXPECTED_NAME="${3:-$(basename -- "$DEST_PATH")}"
   [ -n "$DEST_PATH" ] && [ -n "$CANON_TARGET_DIR" ] && [ -n "$EXPECTED_NAME" ] || return 1
+  is_safe_skill_name "$EXPECTED_NAME" || return 1
   DEST_PARENT="$(canonicalize_path "$(dirname -- "$DEST_PATH")")" || return 1
   [ "$DEST_PARENT" = "$CANON_TARGET_DIR" ] || return 1
   CANON_DEST="$(canonicalize_path "$DEST_PATH")" || return 1
@@ -141,6 +149,40 @@ verify_copy_dir_contents() {
   return 0
 }
 
+verify_orphan_copy_dir_contents() {
+  _VO_DEST="$1"
+  for _VO_ENTRY in "$_VO_DEST"/* "$_VO_DEST"/.*; do
+    [ -e "$_VO_ENTRY" ] || [ -L "$_VO_ENTRY" ] || continue
+    _VO_NAME="$(basename -- "$_VO_ENTRY")"
+    case "$_VO_NAME" in
+      .|..|"$MARKER_FILE"|SKILL.md)
+        if [ "$_VO_NAME" = "SKILL.md" ]; then
+          [ -f "$_VO_ENTRY" ] && [ ! -L "$_VO_ENTRY" ] || return 1
+        fi
+        continue
+        ;;
+      references)
+        [ -d "$_VO_ENTRY" ] && [ ! -L "$_VO_ENTRY" ] || return 1
+        for _VO_REF in "$_VO_ENTRY"/* "$_VO_ENTRY"/.*; do
+          [ -e "$_VO_REF" ] || [ -L "$_VO_REF" ] || continue
+          _VO_REF_NAME="$(basename -- "$_VO_REF")"
+          case "$_VO_REF_NAME" in
+            .|..) continue ;;
+            *.md)
+              [ -f "$_VO_REF" ] && [ ! -L "$_VO_REF" ] || return 1
+              ;;
+            *) return 1 ;;
+          esac
+        done
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+  done
+  return 0
+}
+
 is_owned_copy_dir() {
   DEST_PATH="$1"
   SKILL_NAME="$2"
@@ -156,9 +198,13 @@ is_owned_copy_dir() {
   grep -Eq "^name:[[:space:]]*$SKILL_NAME[[:space:]]*$" "$SKILL_MD_PATH" 2>/dev/null || return 1
 
   CANON_EXPECTED_SOURCE="$(canonicalize_path "$EXPECTED_SOURCE_DIR")" || return 1
+  CANON_SKILLS_ROOT="$(canonicalize_path "$SKILLS_ROOT")" || return 1
+  case "$CANON_EXPECTED_SOURCE" in
+    "$CANON_SKILLS_ROOT"/*) ;;
+    *) return 1 ;;
+  esac
 
   if grep -qx "plugin=$PLUGIN_ID" "$MARKER_PATH" 2>/dev/null; then
-    ! grep -v -qx "plugin=$PLUGIN_ID" "$MARKER_PATH" 2>/dev/null || true
     if [ "$(grep -c "^plugin=" "$MARKER_PATH" 2>/dev/null || printf '0')" -ne 1 ]; then
       return 1
     fi
@@ -177,12 +223,20 @@ is_owned_copy_dir() {
       CANON_MARKER_SOURCE="$(canonicalize_path "$MARKER_SOURCE_PATH")" || return 1
       [ "$CANON_MARKER_SOURCE" = "$CANON_EXPECTED_SOURCE" ] || return 1
     fi
-    verify_copy_dir_contents "$DEST_PATH" "$CANON_EXPECTED_SOURCE" || return 1
+    if [ -d "$CANON_EXPECTED_SOURCE" ]; then
+      verify_copy_dir_contents "$DEST_PATH" "$CANON_EXPECTED_SOURCE" || return 1
+    else
+      verify_orphan_copy_dir_contents "$DEST_PATH" || return 1
+    fi
     return 0
   fi
 
   if grep -qx "managed-by=install.sh" "$MARKER_PATH" 2>/dev/null && ! grep -q "^plugin=" "$MARKER_PATH" 2>/dev/null; then
-    verify_copy_dir_contents "$DEST_PATH" "$CANON_EXPECTED_SOURCE" || return 1
+    if [ -d "$CANON_EXPECTED_SOURCE" ]; then
+      verify_copy_dir_contents "$DEST_PATH" "$CANON_EXPECTED_SOURCE" || return 1
+    else
+      verify_orphan_copy_dir_contents "$DEST_PATH" || return 1
+    fi
     return 0
   fi
   return 1
@@ -266,6 +320,7 @@ fi
 MANIFEST_PATH="$CANON_TARGET/$MANIFEST_FILE"
 SKILL_COUNT=0
 CONFLICT_COUNT=0
+ORPHAN_PLAN_ENTRIES=""
 
 if [ -e "$MANIFEST_PATH" ] || [ -L "$MANIFEST_PATH" ]; then
   if ! is_owned_manifest "$MANIFEST_PATH"; then
@@ -310,6 +365,54 @@ for SKILL_DIR in "$SKILLS_ROOT"/*; do
   fi
 done
 
+# Pass 1b: Inspect existing owned manifest for retired/orphan skill entries no longer in skills/
+if [ -f "$MANIFEST_PATH" ] && is_owned_manifest "$MANIFEST_PATH"; then
+  while IFS='|' read -r REC_KIND REC_SKILL _REC_MODE _REC_DEST _REC_SOURCE; do
+    [ "$REC_KIND" = "entry" ] || continue
+    [ -n "$REC_SKILL" ] || continue
+    if ! is_safe_skill_name "$REC_SKILL"; then
+      echo "Conflict: unsafe skill name '$REC_SKILL' in manifest $MANIFEST_PATH." >&2
+      CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+      continue
+    fi
+    # Skip if still an active skill in SKILLS_ROOT
+    if [ -f "$SKILLS_ROOT/$REC_SKILL/SKILL.md" ]; then
+      continue
+    fi
+    ORPHAN_DEST="$CANON_TARGET/$REC_SKILL"
+    ORPHAN_EXPECTED_SRC="$(canonicalize_path "$SKILLS_ROOT/$REC_SKILL")"
+    if [ ! -e "$ORPHAN_DEST" ] && [ ! -L "$ORPHAN_DEST" ]; then
+      continue
+    fi
+    if ! verify_dest_within_target "$ORPHAN_DEST" "$CANON_TARGET" "$REC_SKILL"; then
+      echo "Conflict: retired manifest entry escapes target directory ($ORPHAN_DEST)." >&2
+      CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+      continue
+    fi
+    if [ -L "$ORPHAN_DEST" ]; then
+      if ! is_owned_symlink "$ORPHAN_DEST" "$ORPHAN_EXPECTED_SRC"; then
+        LINK_TARGET="$(readlink "$ORPHAN_DEST" 2>/dev/null || printf '<unreadable>')"
+        echo "Conflict: refusing to prune unmanaged retired symlink at $ORPHAN_DEST (points to: $LINK_TARGET)." >&2
+        CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+        continue
+      fi
+      ORPHAN_PLAN_ENTRIES="${ORPHAN_PLAN_ENTRIES}symlink|${REC_SKILL}|${ORPHAN_DEST}|${ORPHAN_EXPECTED_SRC}
+"
+    elif [ -d "$ORPHAN_DEST" ]; then
+      if ! is_owned_copy_dir "$ORPHAN_DEST" "$REC_SKILL" "$ORPHAN_DEST" "$ORPHAN_EXPECTED_SRC"; then
+        echo "Conflict: refusing to prune unmanaged retired directory at $ORPHAN_DEST." >&2
+        CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+        continue
+      fi
+      ORPHAN_PLAN_ENTRIES="${ORPHAN_PLAN_ENTRIES}copy|${REC_SKILL}|${ORPHAN_DEST}|${ORPHAN_EXPECTED_SRC}
+"
+    else
+      echo "Conflict: refusing to prune unmanaged non-directory file at $ORPHAN_DEST." >&2
+      CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+    fi
+  done < "$MANIFEST_PATH"
+fi
+
 if [ "$SKILL_COUNT" -eq 0 ]; then
   echo "No skills found under $SKILLS_ROOT" >&2
   exit 1
@@ -334,6 +437,52 @@ if [ "$DRY_RUN" -eq 0 ]; then
     printf "install_mode=%s\n" "$MODE"
     printf "source_root=%s\n" "$SCRIPT_DIR"
   } > "$MANIFEST_TMP"
+fi
+
+if [ -n "$ORPHAN_PLAN_ENTRIES" ]; then
+  while IFS='|' read -r ORPHAN_TYPE ORPHAN_SKILL ORPHAN_DEST ORPHAN_SRC; do
+    [ -n "$ORPHAN_TYPE" ] || continue
+    if [ ! -e "$ORPHAN_DEST" ] && [ ! -L "$ORPHAN_DEST" ]; then
+      continue
+    fi
+    if [ "$ORPHAN_TYPE" = "symlink" ]; then
+      if [ "$DRY_RUN" -eq 1 ]; then
+        echo "[dry-run] Would prune retired owned symlink: $ORPHAN_DEST"
+      else
+        if ! verify_dest_within_target "$ORPHAN_DEST" "$CANON_TARGET" "$ORPHAN_SKILL"; then
+          rm -f "$MANIFEST_TMP"
+          echo "Destination path verification failed for $ORPHAN_DEST. Aborting." >&2
+          exit 1
+        fi
+        if ! is_owned_symlink "$ORPHAN_DEST" "$ORPHAN_SRC"; then
+          rm -f "$MANIFEST_TMP"
+          echo "Symlink ownership verification failed for $ORPHAN_DEST. Aborting." >&2
+          exit 1
+        fi
+        rm "$ORPHAN_DEST"
+        echo "Pruned retired symlink: $ORPHAN_DEST"
+      fi
+    elif [ "$ORPHAN_TYPE" = "copy" ]; then
+      if [ "$DRY_RUN" -eq 1 ]; then
+        echo "[dry-run] Would prune retired owned directory: $ORPHAN_DEST"
+      else
+        if ! verify_dest_within_target "$ORPHAN_DEST" "$CANON_TARGET" "$ORPHAN_SKILL"; then
+          rm -f "$MANIFEST_TMP"
+          echo "Destination path verification failed for $ORPHAN_DEST. Aborting." >&2
+          exit 1
+        fi
+        if ! is_owned_copy_dir "$ORPHAN_DEST" "$ORPHAN_SKILL" "$ORPHAN_DEST" "$ORPHAN_SRC"; then
+          rm -f "$MANIFEST_TMP"
+          echo "Directory ownership verification failed for $ORPHAN_DEST. Aborting." >&2
+          exit 1
+        fi
+        rm -rf "$ORPHAN_DEST"
+        echo "Pruned retired directory: $ORPHAN_DEST"
+      fi
+    fi
+  done <<EOF
+$ORPHAN_PLAN_ENTRIES
+EOF
 fi
 
 for SKILL_DIR in "$SKILLS_ROOT"/*; do

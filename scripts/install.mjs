@@ -56,14 +56,17 @@ const isPathWithinDir = (childPath, parentDir) => {
   return normChild.startsWith(prefix);
 };
 
+export const isSafeSkillName = (skillName) =>
+  Boolean(skillName) && skillName !== "." && skillName !== ".." && !/[/\\]/.test(skillName);
+
 const validateSkillName = (skillName) => {
-  if (!skillName || skillName === "." || skillName === ".." || /[/\\]/.test(skillName)) {
+  if (!isSafeSkillName(skillName)) {
     throw new Error(`Unsafe skill name: ${skillName}`);
   }
 };
 
 export const verifyDestWithinTarget = (destPath, canonTargetDir, pluginRoot, expectedName = path.basename(destPath)) => {
-  if (!destPath || !canonTargetDir || !expectedName) return false;
+  if (!destPath || !canonTargetDir || !isSafeSkillName(expectedName)) return false;
   const destParent = canonicalizePath(path.dirname(destPath));
   if (!pathsEqual(destParent, canonTargetDir)) return false;
   const canonDest = canonicalizePath(destPath);
@@ -141,7 +144,43 @@ const verifyCopyDirContents = (destDir, sourceDir) => {
   return true;
 };
 
-export const isOwnedCopyDir = (destPath, skillName, canonDestPath, expectedSourceDir) => {
+const verifyOrphanCopyDirContents = (destDir) => {
+  let entries;
+  try {
+    entries = fs.readdirSync(destDir, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  for (const entry of entries) {
+    if (entry.name === MARKER_FILE) continue;
+    const destEntry = path.join(destDir, entry.name);
+    let destStat;
+    try {
+      destStat = fs.lstatSync(destEntry);
+    } catch {
+      return false;
+    }
+    if (destStat.isSymbolicLink()) return false;
+    if (entry.name === "SKILL.md") {
+      if (!destStat.isFile()) return false;
+    } else if (entry.name === "references") {
+      if (!destStat.isDirectory()) return false;
+      const refEntries = fs.readdirSync(destEntry, { withFileTypes: true });
+      for (const ref of refEntries) {
+        const refPath = path.join(destEntry, ref.name);
+        const refStat = fs.lstatSync(refPath);
+        if (refStat.isSymbolicLink() || !refStat.isFile() || !ref.name.endsWith(".md")) {
+          return false;
+        }
+      }
+    } else {
+      return false;
+    }
+  }
+  return true;
+};
+
+export const isOwnedCopyDir = (destPath, skillName, canonDestPath, expectedSourceDir, skillsRoot = expectedSourceDir ? path.dirname(expectedSourceDir) : null) => {
   let stat;
   try {
     stat = fs.lstatSync(destPath);
@@ -174,6 +213,19 @@ export const isOwnedCopyDir = (destPath, skillName, canonDestPath, expectedSourc
   }
 
   const canonExpectedSource = expectedSourceDir ? canonicalizePath(expectedSourceDir) : null;
+  if (canonExpectedSource && skillsRoot) {
+    const canonSkillsRoot = canonicalizePath(skillsRoot);
+    if (!isPathWithinDir(canonExpectedSource, canonSkillsRoot)) return false;
+  }
+
+  const sourceExists = Boolean(canonExpectedSource && fs.existsSync(canonExpectedSource));
+  const checkContents = () => {
+    if (sourceExists) {
+      return verifyCopyDirContents(destPath, canonExpectedSource);
+    }
+    return verifyOrphanCopyDirContents(destPath);
+  };
+
   const lines = fs.readFileSync(markerPath, "utf8").split(/\r?\n/).filter(Boolean);
   const pluginLines = lines.filter((l) => l.startsWith("plugin="));
 
@@ -199,17 +251,11 @@ export const isOwnedCopyDir = (destPath, skillName, canonDestPath, expectedSourc
       }
     }
 
-    if (canonExpectedSource && !verifyCopyDirContents(destPath, canonExpectedSource)) {
-      return false;
-    }
-    return true;
+    return checkContents();
   }
 
   if (lines.includes("managed-by=install.sh") && pluginLines.length === 0) {
-    if (canonExpectedSource && !verifyCopyDirContents(destPath, canonExpectedSource)) {
-      return false;
-    }
-    return true;
+    return checkContents();
   }
 
   return false;
@@ -225,6 +271,82 @@ export const isOwnedManifest = (manifestPath) => {
   } catch {
     return false;
   }
+};
+
+const collectRetiredManifestCandidates = ({ manifestPath, activeSkillNames, canonTarget, canonRoot, skillsRoot }) => {
+  const conflicts = [];
+  const retiredPlan = [];
+  if (!isOwnedManifest(manifestPath)) {
+    return { conflicts, retiredPlan };
+  }
+  const lines = fs.readFileSync(manifestPath, "utf8").split(/\r?\n/).filter(Boolean);
+  const seenSkills = new Set();
+
+  for (const line of lines) {
+    if (!line.startsWith("entry|")) continue;
+    const parts = line.split("|");
+    const recSkill = parts[1] ?? "";
+    if (!isSafeSkillName(recSkill)) {
+      conflicts.push(`Conflict: unsafe skill name '${recSkill}' in manifest ${manifestPath}.`);
+      continue;
+    }
+    if (activeSkillNames.has(recSkill) || seenSkills.has(recSkill)) {
+      continue;
+    }
+    seenSkills.add(recSkill);
+
+    const orphanDest = path.join(canonTarget, recSkill);
+    const orphanExpectedSrc = canonicalizePath(path.join(skillsRoot, recSkill));
+    let stat;
+    try {
+      stat = fs.lstatSync(orphanDest);
+    } catch {
+      continue;
+    }
+
+    if (!verifyDestWithinTarget(orphanDest, canonTarget, canonRoot, recSkill)) {
+      conflicts.push(`Conflict: retired manifest entry escapes target directory (${orphanDest}).`);
+      continue;
+    }
+
+    if (stat.isSymbolicLink()) {
+      if (!isOwnedSymlink(orphanDest, orphanExpectedSrc, skillsRoot)) {
+        let targetStr = "<unreadable>";
+        try {
+          targetStr = fs.readlinkSync(orphanDest);
+        } catch {
+          // ignore
+        }
+        conflicts.push(
+          `Conflict: refusing to remove unmanaged retired symlink at ${orphanDest} (points to: ${targetStr}).`,
+        );
+        continue;
+      }
+      retiredPlan.push({
+        type: "symlink",
+        skill: { name: recSkill, dir: orphanExpectedSrc },
+        dest: orphanDest,
+        retired: true,
+      });
+    } else if (stat.isDirectory()) {
+      if (!isOwnedCopyDir(orphanDest, recSkill, orphanDest, orphanExpectedSrc, skillsRoot)) {
+        conflicts.push(
+          `Conflict: refusing to remove unmanaged retired directory at ${orphanDest}.`,
+        );
+        continue;
+      }
+      retiredPlan.push({
+        type: "copy",
+        skill: { name: recSkill, dir: orphanExpectedSrc },
+        dest: orphanDest,
+        retired: true,
+      });
+    } else {
+      conflicts.push(`Conflict: refusing to remove unmanaged non-directory file at ${orphanDest}.`);
+    }
+  }
+
+  return { conflicts, retiredPlan };
 };
 
 const removeOwnedSymlink = (destPath) => {
@@ -357,7 +479,7 @@ export const runInstaller = ({
         );
       }
     } else if (stat.isDirectory()) {
-      if (!isOwnedCopyDir(dest, skill.name, dest, skill.dir)) {
+      if (!isOwnedCopyDir(dest, skill.name, dest, skill.dir, skillsRoot)) {
         conflicts.push(
           `Conflict: refusing to overwrite unmanaged directory at ${dest} (missing valid ${MARKER_FILE} for ${PLUGIN_ID} or contains unexpected files).`,
         );
@@ -367,12 +489,29 @@ export const runInstaller = ({
     }
   }
 
+  const activeSkillNames = new Set(skills.map((s) => s.name));
+  const { conflicts: retiredConflicts, retiredPlan } = collectRetiredManifestCandidates({
+    manifestPath,
+    activeSkillNames,
+    canonTarget,
+    canonRoot,
+    skillsRoot,
+  });
+  conflicts.push(...retiredConflicts);
+
   if (conflicts.length > 0) {
     throw new Error(`${conflicts.join("\n")}\nAborted installation: ${conflicts.length} conflict(s) detected. No files were modified.`);
   }
 
   const actions = [];
   if (dryRun) {
+    for (const item of retiredPlan) {
+      actions.push(
+        item.type === "symlink"
+          ? `[dry-run] Would prune retired owned symlink: ${item.dest}`
+          : `[dry-run] Would prune retired owned directory: ${item.dest}`,
+      );
+    }
     for (const skill of skills) {
       const dest = path.join(canonTarget, skill.name);
       let existing = null;
@@ -404,6 +543,35 @@ export const runInstaller = ({
     `source_root=${canonRoot}`,
   ];
 
+  for (const item of retiredPlan) {
+    const { type, skill, dest } = item;
+    if (typeof beforeRemoveHook === "function") {
+      beforeRemoveHook({ dest, skill, canonTarget, type, retired: true });
+    }
+    if (!verifyDestWithinTarget(dest, canonTarget, canonRoot, skill.name)) {
+      throw new Error(`Destination path verification failed for ${dest}. Aborting.`);
+    }
+    let currentStat;
+    try {
+      currentStat = fs.lstatSync(dest);
+    } catch {
+      continue;
+    }
+    if (type === "symlink") {
+      if (!currentStat.isSymbolicLink() || !isOwnedSymlink(dest, skill.dir, skillsRoot)) {
+        throw new Error(`Symlink ownership verification failed for ${dest}. Aborting.`);
+      }
+      removeOwnedSymlink(dest);
+      actions.push(`Pruned retired symlink: ${dest}`);
+    } else if (type === "copy") {
+      if (!currentStat.isDirectory() || currentStat.isSymbolicLink() || !isOwnedCopyDir(dest, skill.name, dest, skill.dir, skillsRoot)) {
+        throw new Error(`Directory ownership verification failed for ${dest}. Aborting.`);
+      }
+      fs.rmSync(dest, { recursive: true, force: false });
+      actions.push(`Pruned retired directory: ${dest}`);
+    }
+  }
+
   for (const skill of skills) {
     const dest = path.join(canonTarget, skill.name);
     let existing = null;
@@ -432,7 +600,7 @@ export const runInstaller = ({
         }
         removeOwnedSymlink(dest);
       } else if (currentStat.isDirectory()) {
-        if (!isOwnedCopyDir(dest, skill.name, dest, skill.dir)) {
+        if (!isOwnedCopyDir(dest, skill.name, dest, skill.dir, skillsRoot)) {
           throw new Error(`Directory ownership verification failed for ${dest}. Aborting.`);
         }
         fs.rmSync(dest, { recursive: true, force: false });
@@ -550,7 +718,7 @@ export const runUninstaller = ({
       }
       plan.push({ type: "symlink", skill, dest });
     } else if (stat.isDirectory()) {
-      if (!isOwnedCopyDir(dest, skill.name, dest, skill.dir)) {
+      if (!isOwnedCopyDir(dest, skill.name, dest, skill.dir, skillsRoot)) {
         conflicts.push(
           `Conflict: refusing to remove unmanaged path at ${dest} (missing valid ${MARKER_FILE} for ${PLUGIN_ID} or unexpected user files present).`,
         );
@@ -561,6 +729,17 @@ export const runUninstaller = ({
       conflicts.push(`Conflict: refusing to remove unmanaged non-directory file at ${dest}.`);
     }
   }
+
+  const activeSkillNames = new Set(skills.map((s) => s.name));
+  const { conflicts: retiredConflicts, retiredPlan } = collectRetiredManifestCandidates({
+    manifestPath,
+    activeSkillNames,
+    canonTarget,
+    canonRoot,
+    skillsRoot,
+  });
+  conflicts.push(...retiredConflicts);
+  plan.push(...retiredPlan);
 
   if (conflicts.length > 0) {
     throw new Error(`${conflicts.join("\n")}\nAborted uninstall: ${conflicts.length} conflict(s) detected. No files were removed.`);
@@ -600,7 +779,7 @@ export const runUninstaller = ({
       removeOwnedSymlink(dest);
       actions.push(`Removed symlink: ${dest}`);
     } else if (type === "copy") {
-      if (!currentStat.isDirectory() || currentStat.isSymbolicLink() || !isOwnedCopyDir(dest, skill.name, dest, skill.dir)) {
+      if (!currentStat.isDirectory() || currentStat.isSymbolicLink() || !isOwnedCopyDir(dest, skill.name, dest, skill.dir, skillsRoot)) {
         throw new Error(`Copy directory ownership verification failed for ${dest}. Aborting.`);
       }
       fs.rmSync(dest, { recursive: true, force: false });
