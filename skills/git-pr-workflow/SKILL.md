@@ -1,6 +1,6 @@
 ---
 name: git-pr-workflow
-description: Use when creating branches, committing work units, running pre-PR quality gates and secret scans, rebasing, or creating and updating Pull Requests.
+description: Use when creating branches, committing work units, running pre-PR quality gates and secret scans, rebasing, resolving PR merge conflicts, or creating and auto-merging Pull Requests.
 ---
 
 # Git & Pull Request Workflow
@@ -34,18 +34,44 @@ Keep Git mutations Orchestrator-owned, commit clean work units, pass all quality
 - Include the matching Issue closing keyword (`Closes #123` / `Fixes #123`). For a Sub-issue PR, close the child Issue rather than its Parent. Note that GitHub only auto-closes `Closes #N` when merging into the default branch; for non-default base branches, keep the keyword for traceability and note the base branch.
 - Prefer `gh pr create`; use a connected Agent GitHub tool only if `gh` cannot perform the operation.
 
-## Post-Push PR & CI-Gated Merge
+## CI Status Classification & Auto-Merge Policy
 
-- By default (`github.auto_merge_on_ci_pass: true`), after pushing and creating the PR:
-  1. Monitor CI checks (`gh pr checks <pr> --watch`).
-  2. If any check fails, enter `skills/review-ci-loop/SKILL.md` to diagnose and remediate.
-  3. Once all tests and CI checks pass with zero unresolved blockers, merge the PR using `gh pr merge <pr> --squash --delete-branch` (or the configured `github.merge_method`) and sync the local base branch.
-- Never merge a Draft PR, a PR with failing/pending/unverified checks, or with `--admin`.
-- If `.github-convention/config.yaml` sets `github.auto_merge_on_ci_pass: false`, leave the PR open for manual user merge.
+Classify PR CI status (`gh pr view <pr> --json isDraft,state,mergeable,mergeStateStatus,statusCheckRollup`) into 6 states:
 
-## Updating Other Open PRs After Merge
+| Status | Meaning | Merge Action |
+| :--- | :--- | :--- |
+| `PASS` | All configured CI checks passed | Allow merge |
+| `FAIL` | Any CI check/test failed | Block merge; enter `skills/review-ci-loop/SKILL.md` |
+| `PENDING` | One or more checks still running/queued | Always wait (never bypass with `--auto`) |
+| `NO_TESTS` | Project has no configured CI checks or tests | Allow merge |
+| `UNAVAILABLE` | CI cannot run (Actions quota/billing limit or Actions disabled) | Allow merge after local verification |
+| `UNKNOWN` | PR or CI status query failed or check state cannot be trusted | Block merge; diagnose cause safely |
 
-- After a PR merges, inspect changed files and the dependency graph.
-- Rebase only open branches materially affected by the merged change.
-- Coordinate with or pause any active worker before touching its workspace.
-- Resolve simple conflicts only; ask the user on complex conflicts or design decisions.
+- **Critical distinctions**: Never confuse `NO_TESTS` with `UNAVAILABLE`, never treat `PENDING` as `UNAVAILABLE`, never misclassify a real test failure (`FAIL`) as `UNAVAILABLE`, and distinguish CI query failure (`UNKNOWN`) from PR state query failure (never merge if PR cannot be verified `OPEN`).
+- **Auto-merge preconditions**: PR is `OPEN`, not Draft, zero failing tests (`PASS`, `NO_TESTS`, or `UNAVAILABLE`), conflicts resolved (`MERGEABLE`), zero unresolved blockers, and `github.auto_merge_on_ci_pass` is not `false`.
+- **`merge_method` selection**: Resolve `github.merge_method` from `.github-convention/config.yaml` (`squash` | `merge` | `rebase`; invalid or omitted defaults to `squash`, respecting repository allowed merge methods):
+  - `gh pr merge <PR> --squash --delete-branch`
+  - `gh pr merge <PR> --merge --delete-branch`
+  - `gh pr merge <PR> --rebase --delete-branch`
+- Never use `--admin` or raw `gh api` merge endpoints, and do not rely on `gh pr merge --auto` to skip waiting for `PENDING` checks.
+- If `github.auto_merge_on_ci_pass: false`, leave the PR open for manual user merge.
+
+## Automatic PR Conflict Resolution (10-Step Flow)
+
+When a PR has merge conflicts (`CONFLICTING` / `DIRTY`), resolve them before merging:
+
+1. Identify the PR's target base branch.
+2. Fetch the latest remote base branch (`git fetch origin <base>`).
+3. Compare current working branch changes against the base branch.
+4. Analyze conflicting files and root cause of each conflict.
+5. Resolve conflicts carefully while preserving both upstream intent and Issue changes.
+6. Verify that all existing branch changes and Issue requirements remain intact.
+7. Run impacted tests and quality gates locally.
+8. Commit (if merge/rebase requires) within the Issue scope and push (`--force-with-lease` only if rebased on an owned branch).
+9. Re-verify PR mergeability (`gh pr view --json mergeable,mergeStateStatus`).
+10. Re-evaluate CI and auto-merge conditions on the **new commit** (never treat a previous commit's CI result as valid for the new commit).
+
+**Conflict safety rules**:
+- Never run `git reset --hard` to discard work, and never blindly apply `git checkout --ours` or `--theirs`.
+- Never overwrite another contributor's changes arbitrarily or add features outside the Issue scope.
+- Review the full diff after resolution; ask the user on complex design conflicts or ambiguous intent.

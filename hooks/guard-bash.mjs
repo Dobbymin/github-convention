@@ -15,6 +15,35 @@ const SECRET_PATTERNS = [
   },
 ];
 
+export const VALID_MERGE_METHODS = new Set(["squash", "merge", "rebase"]);
+
+export const resolveMergeMethod = (rawMethod, allowedMethods = null) => {
+  const normalized = typeof rawMethod === "string" ? rawMethod.trim().toLowerCase() : "";
+  const preferred = VALID_MERGE_METHODS.has(normalized) ? normalized : "squash";
+  if (Array.isArray(allowedMethods) && allowedMethods.length > 0) {
+    const validAllowed = allowedMethods
+      .map((m) => String(m).trim().toLowerCase())
+      .filter((m) => VALID_MERGE_METHODS.has(m));
+    if (validAllowed.length > 0 && !validAllowed.includes(preferred)) {
+      return validAllowed.includes("squash") ? "squash" : validAllowed[0];
+    }
+  }
+  return preferred;
+};
+
+export const buildPrMergeCommand = (prRef, { mergeMethod = "squash", allowedMethods = null, deleteBranch = true } = {}) => {
+  const method = resolveMergeMethod(mergeMethod, allowedMethods);
+  const parts = ["gh", "pr", "merge"];
+  if (prRef !== undefined && prRef !== null && String(prRef).trim() !== "") {
+    parts.push(String(prRef).trim());
+  }
+  parts.push(`--${method}`);
+  if (deleteBranch) {
+    parts.push("--delete-branch");
+  }
+  return parts.join(" ");
+};
+
 const splitSubcommands = (command) =>
   String(command ?? "")
     .split(/(?:&&|\|\||;|\n)/)
@@ -95,7 +124,7 @@ const parseGitSubcommand = (tokens) => {
   return null;
 };
 
-const readGithubConfig = (startDir) => {
+export const readGithubConfig = (startDir) => {
   let current = path.resolve(startDir);
   while (true) {
     const cfgPath = path.join(current, ".github-convention", "config.yaml");
@@ -108,9 +137,11 @@ const readGithubConfig = (startDir) => {
           const branchMatch = section.match(/^\s+default_branch:\s*["']?([^\s"'#]+)["']?/m);
           const configured = branchMatch ? branchMatch[1] : "";
           const autoMergeMatch = section.match(/^\s+auto_merge_on_ci_pass:\s*(true|false)/im);
+          const mergeMethodMatch = section.match(/^\s+merge_method:\s*["']?([^\s"'#]+)["']?/m);
           return {
             defaultBranch: configured && configured !== "detect" ? configured : null,
             autoMergeOnCiPass: autoMergeMatch ? autoMergeMatch[1].toLowerCase() === "true" : true,
+            mergeMethod: resolveMergeMethod(mergeMethodMatch ? mergeMethodMatch[1] : "squash"),
           };
         }
       }
@@ -118,11 +149,11 @@ const readGithubConfig = (startDir) => {
       // Ignore unreadable config; fallback to defaults.
     }
     if (fs.existsSync(path.join(current, ".git"))) {
-      return { defaultBranch: null, autoMergeOnCiPass: true };
+      return { defaultBranch: null, autoMergeOnCiPass: true, mergeMethod: "squash" };
     }
     const parent = path.dirname(current);
     if (parent === current) {
-      return { defaultBranch: null, autoMergeOnCiPass: true };
+      return { defaultBranch: null, autoMergeOnCiPass: true, mergeMethod: "squash" };
     }
     current = parent;
   }
@@ -152,11 +183,60 @@ const extractPrMergeTarget = (args) => {
   return null;
 };
 
+const UNAVAILABLE_MESSAGE_PATTERNS = [
+  /recent account payments have failed/i,
+  /spending limit needs to be increased/i,
+  /billing & plans/i,
+  /actions is disabled/i,
+  /github actions is disabled/i,
+  /workflows? disabled/i,
+  /quota exceeded/i,
+  /minutes quota/i,
+];
+
+const isUnavailableMessage = (text) =>
+  typeof text === "string" && UNAVAILABLE_MESSAGE_PATTERNS.some((re) => re.test(text));
+
+const inspectCheckRunUnavailableViaGh = (check, cwd) => {
+  const detailsUrl = String(check?.detailsUrl ?? "");
+  const jobMatch = detailsUrl.match(/\/github\.com\/([^/]+\/[^/]+)\/actions\/runs\/\d+\/job\/(\d+)/);
+  if (!jobMatch) return false;
+  const [, repoSlug, jobId] = jobMatch;
+  try {
+    const rawJob = execFileSync("gh", ["api", `repos/${repoSlug}/actions/jobs/${jobId}`], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const job = JSON.parse(rawJob);
+    const steps = Array.isArray(job?.steps) ? job.steps : [];
+    if (steps.length > 0) {
+      return false;
+    }
+    const rawAnnotations = execFileSync(
+      "gh",
+      ["api", `repos/${repoSlug}/check-runs/${jobId}/annotations`],
+      {
+        cwd,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    ).trim();
+    const annotations = JSON.parse(rawAnnotations);
+    return (
+      Array.isArray(annotations) &&
+      annotations.some((ann) => isUnavailableMessage(ann?.message) || isUnavailableMessage(ann?.title))
+    );
+  } catch {
+    return false;
+  }
+};
+
 const inspectPrMergeReadiness = (prRef, cwd) => {
   try {
     const ghArgs = ["pr", "view"];
     if (prRef) ghArgs.push(prRef);
-    ghArgs.push("--json", "isDraft,state,statusCheckRollup");
+    ghArgs.push("--json", "isDraft,state,mergeable,mergeStateStatus,statusCheckRollup");
     const raw = execFileSync("gh", ghArgs, {
       cwd,
       encoding: "utf8",
@@ -167,12 +247,17 @@ const inspectPrMergeReadiness = (prRef, cwd) => {
       ok: true,
       isDraft: Boolean(parsed?.isDraft),
       state: parsed?.state ?? "OPEN",
+      mergeable: parsed?.mergeable ?? null,
+      mergeStateStatus: parsed?.mergeStateStatus ?? null,
+      ciQueryFailed: parsed?.statusCheckRollup === undefined,
       checks: Array.isArray(parsed?.statusCheckRollup) ? parsed.statusCheckRollup : [],
     };
   } catch {
     return { ok: false, isDraft: false, state: "UNKNOWN", checks: [] };
   }
 };
+
+const PASSING_CONCLUSIONS = new Set(["SUCCESS", "NEUTRAL", "SKIPPED"]);
 
 const FAILING_CONCLUSIONS = new Set([
   "FAILURE",
@@ -183,10 +268,309 @@ const FAILING_CONCLUSIONS = new Set([
   "STALE",
 ]);
 
+const isCheckExplicitlyUnavailable = (check, { cwd } = {}) => {
+  if (!check || typeof check !== "object") return false;
+  if (check.unavailable === true || check.billingBlocked === true || check.ciDisabled === true) {
+    return true;
+  }
+  const texts = [
+    check.message,
+    check.summary,
+    check.text,
+    check.title,
+    check.reason,
+    ...(Array.isArray(check.annotations)
+      ? check.annotations.map((a) => (typeof a === "string" ? a : a?.message))
+      : []),
+  ];
+  if (texts.some((t) => isUnavailableMessage(t))) {
+    if (Array.isArray(check.steps) && check.steps.length > 0) {
+      return false;
+    }
+    return true;
+  }
+  const conclusion = String(check.conclusion ?? "").toUpperCase();
+  if ((conclusion === "FAILURE" || conclusion === "STARTUP_FAILURE") && cwd && check.detailsUrl) {
+    return inspectCheckRunUnavailableViaGh(check, cwd);
+  }
+  return false;
+};
+
+export const classifyCiStatus = (prState, { cwd } = {}) => {
+  if (!prState || prState.ok === false) {
+    return {
+      status: "UNKNOWN",
+      reason: "PR status query failed or PR could not be verified.",
+      passing: [],
+      failing: [],
+      pending: [],
+      unavailable: [],
+      unknown: [],
+    };
+  }
+
+  const checks = Array.isArray(prState.checks) ? prState.checks : null;
+  const passing = [];
+  const failing = [];
+  const pending = [];
+  const unavailable = [];
+  const unknown = [];
+
+  if (checks) {
+    for (const check of checks) {
+      const name = check?.name || check?.context || "check";
+      const conclusion = String(check?.conclusion ?? "").toUpperCase();
+      const status = String(check?.status ?? "").toUpperCase();
+      const checkState = String(check?.state ?? "").toUpperCase();
+
+      if (
+        (status && status !== "COMPLETED") ||
+        checkState === "PENDING" ||
+        checkState === "EXPECTED" ||
+        checkState === "IN_PROGRESS" ||
+        checkState === "QUEUED" ||
+        checkState === "WAITING"
+      ) {
+        pending.push(name);
+        continue;
+      }
+
+      if (isCheckExplicitlyUnavailable(check, { cwd })) {
+        unavailable.push(name);
+        continue;
+      }
+
+      if (
+        FAILING_CONCLUSIONS.has(conclusion) ||
+        checkState === "FAILURE" ||
+        checkState === "ERROR"
+      ) {
+        failing.push(name);
+        continue;
+      }
+
+      if (
+        PASSING_CONCLUSIONS.has(conclusion) ||
+        checkState === "SUCCESS"
+      ) {
+        passing.push(name);
+        continue;
+      }
+
+      unknown.push(name);
+    }
+  }
+
+  // Real test failures are NEVER ignored, even if CI query partially failed or other jobs are unavailable.
+  if (failing.length > 0) {
+    return {
+      status: "FAIL",
+      reason: `Failing CI check(s): ${failing.join(", ")}.`,
+      passing,
+      failing,
+      pending,
+      unavailable,
+      unknown,
+    };
+  }
+
+  // In-progress checks must NEVER be treated as UNAVAILABLE; always wait.
+  if (pending.length > 0) {
+    return {
+      status: "PENDING",
+      reason: `Pending CI check(s): ${pending.join(", ")}.`,
+      passing,
+      failing,
+      pending,
+      unavailable,
+      unknown,
+    };
+  }
+
+  // CI query failure vs UNAVAILABLE distinction: if CI status query failed or returned unrecognized check states, classify as UNKNOWN.
+  if (prState.ciQueryFailed || prState.checksError || checks === null || unknown.length > 0) {
+    return {
+      status: "UNKNOWN",
+      reason:
+        unknown.length > 0
+          ? `Unrecognized CI check state(s): ${unknown.join(", ")}.`
+          : "CI check status could not be queried reliably.",
+      passing,
+      failing,
+      pending,
+      unavailable,
+      unknown,
+    };
+  }
+
+  // Explicit repository/account-level CI unavailability (Actions disabled, billing/quota block).
+  if (
+    prState.ciUnavailable === true ||
+    prState.actionsDisabled === true ||
+    prState.billingLimited === true ||
+    isUnavailableMessage(prState.ciUnavailableReason) ||
+    (unavailable.length > 0 && passing.length === 0)
+  ) {
+    return {
+      status: "UNAVAILABLE",
+      reason:
+        prState.ciUnavailableReason ||
+        (unavailable.length > 0
+          ? `CI runner unavailable for check(s): ${unavailable.join(", ")}.`
+          : "CI execution is unavailable (Actions disabled or account quota/billing limit)."),
+      passing,
+      failing,
+      pending,
+      unavailable,
+      unknown,
+    };
+  }
+
+  // No tests / no CI checks configured on project.
+  if (checks.length === 0 || prState.noTests === true) {
+    return {
+      status: "NO_TESTS",
+      reason: "No CI checks or tests configured for this project.",
+      passing,
+      failing,
+      pending,
+      unavailable,
+      unknown,
+    };
+  }
+
+  return {
+    status: "PASS",
+    reason: "All CI checks passed.",
+    passing,
+    failing,
+    pending,
+    unavailable,
+    unknown,
+  };
+};
+
+export const evaluateConflictResolution = ({
+  hasConflicts = false,
+  conflictType = "none",
+  resolved = false,
+  preservedChanges = true,
+  withinIssueScope = true,
+  headCommitUpdated = true,
+  localChecksPassed = true,
+  ciStateAfterResolution = null,
+  autoMergeOnCiPass = true,
+} = {}) => {
+  if (!hasConflicts) {
+    const ci = ciStateAfterResolution ? classifyCiStatus(ciStateAfterResolution) : { status: "PASS" };
+    if (ci.status === "FAIL" || ci.status === "UNKNOWN") {
+      return { action: "block", canMerge: false, ciStatus: ci.status, reason: ci.reason };
+    }
+    if (ci.status === "PENDING") {
+      return { action: "wait", canMerge: false, ciStatus: ci.status, reason: ci.reason };
+    }
+    return {
+      action: autoMergeOnCiPass === false ? "manual_merge" : "merge",
+      canMerge: autoMergeOnCiPass !== false,
+      ciStatus: ci.status,
+      reason: "No conflicts detected; ready for merge evaluation.",
+    };
+  }
+
+  if (conflictType === "complex" || conflictType === "ambiguous" || conflictType === "design") {
+    return {
+      action: "ask_user",
+      canMerge: false,
+      ciStatus: "UNKNOWN",
+      reason: "Complex or design-impacting merge conflict requires explicit user confirmation.",
+    };
+  }
+
+  if (!preservedChanges) {
+    return {
+      action: "block",
+      canMerge: false,
+      ciStatus: "UNKNOWN",
+      reason: "Blocked: conflict resolution lost existing branch changes or Issue requirements.",
+    };
+  }
+
+  if (!withinIssueScope) {
+    return {
+      action: "block",
+      canMerge: false,
+      ciStatus: "UNKNOWN",
+      reason: "Blocked: conflict resolution introduced out-of-scope changes beyond the Issue.",
+    };
+  }
+
+  if (!resolved) {
+    return {
+      action: "block",
+      canMerge: false,
+      ciStatus: "UNKNOWN",
+      reason: "Blocked: PR conflicts remain unresolved.",
+    };
+  }
+
+  if (!localChecksPassed) {
+    return {
+      action: "block",
+      canMerge: false,
+      ciStatus: "FAIL",
+      reason: "Blocked: local tests or quality gates failed after resolving conflicts.",
+    };
+  }
+
+  if (!headCommitUpdated) {
+    return {
+      action: "block",
+      canMerge: false,
+      ciStatus: "UNKNOWN",
+      reason: "Blocked: CI results from a prior commit cannot be reused after conflict resolution.",
+    };
+  }
+
+  const ci = classifyCiStatus(ciStateAfterResolution ?? { ok: true, checks: [] });
+  if (ci.status === "FAIL") {
+    return {
+      action: "block",
+      canMerge: false,
+      ciStatus: "FAIL",
+      reason: `Blocked: CI failed on the conflict-resolution commit (${ci.reason})`,
+    };
+  }
+  if (ci.status === "PENDING") {
+    return {
+      action: "wait",
+      canMerge: false,
+      ciStatus: "PENDING",
+      reason: `Wait: CI is still running on the conflict-resolution commit (${ci.reason})`,
+    };
+  }
+  if (ci.status === "UNKNOWN") {
+    return {
+      action: "block",
+      canMerge: false,
+      ciStatus: "UNKNOWN",
+      reason: `Blocked: CI status on the conflict-resolution commit is unknown (${ci.reason})`,
+    };
+  }
+
+  // PASS, NO_TESTS, or UNAVAILABLE
+  return {
+    action: autoMergeOnCiPass === false ? "manual_merge" : "merge",
+    canMerge: autoMergeOnCiPass !== false,
+    ciStatus: ci.status,
+    reason: `Conflicts resolved and verified on new commit (CI status: ${ci.status}).`,
+  };
+};
+
 const evaluatePrMerge = (args, { cwd, prState, autoMergeOnCiPass }) => {
   if (autoMergeOnCiPass === false) {
     return {
       decision: "deny",
+      ciStatus: "DISABLED",
       reason:
         "Blocked: PR merge is disabled by `github.auto_merge_on_ci_pass: false` in `.github-convention/config.yaml`.",
     };
@@ -194,56 +578,98 @@ const evaluatePrMerge = (args, { cwd, prState, autoMergeOnCiPass }) => {
   if (args.includes("--admin")) {
     return {
       decision: "deny",
+      ciStatus: "FORBIDDEN_ADMIN",
       reason: "Blocked: `gh pr merge --admin` is forbidden. Never bypass branch protection.",
     };
   }
 
   const prRef = extractPrMergeTarget(args);
   const state = prState ?? inspectPrMergeReadiness(prRef, cwd);
-  if (!state?.ok) {
+  if (!state || state.ok === false) {
     return {
       decision: "deny",
+      ciStatus: "UNKNOWN",
       reason:
-        "Blocked: could not verify PR CI checks via `gh pr view`. Confirm CI checks pass before merging.",
+        "Blocked: could not verify PR state via `gh pr view`. Confirm the PR exists and is OPEN before merging.",
     };
   }
+
+  const prLifecycleState = String(state.state ?? "OPEN").toUpperCase();
+  if (prLifecycleState === "MERGED") {
+    return {
+      decision: "deny",
+      ciStatus: "MERGED",
+      reason: "Terminated: PR is already MERGED. No further merge action is required.",
+    };
+  }
+  if (prLifecycleState !== "OPEN") {
+    return {
+      decision: "deny",
+      ciStatus: prLifecycleState,
+      reason: `Blocked: PR state is ${prLifecycleState} (must be OPEN to merge).`,
+    };
+  }
+
   if (state.isDraft) {
     return {
       decision: "deny",
+      ciStatus: "DRAFT",
       reason: "Blocked: cannot merge a Draft PR. Mark PR ready and verify CI passes first.",
     };
   }
 
-  const checks = Array.isArray(state.checks) ? state.checks : [];
-  const failing = [];
-  const pending = [];
-  for (const check of checks) {
-    const name = check?.name || check?.context || "check";
-    const conclusion = String(check?.conclusion ?? "").toUpperCase();
-    const status = String(check?.status ?? "").toUpperCase();
-    const checkState = String(check?.state ?? "").toUpperCase();
-
-    if (FAILING_CONCLUSIONS.has(conclusion) || checkState === "FAILURE" || checkState === "ERROR") {
-      failing.push(name);
-    } else if ((status && status !== "COMPLETED") || checkState === "PENDING" || checkState === "EXPECTED") {
-      pending.push(name);
-    }
-  }
-
-  if (failing.length > 0) {
+  const mergeable = String(state.mergeable ?? "").toUpperCase();
+  const mergeStateStatus = String(state.mergeStateStatus ?? "").toUpperCase();
+  if (
+    state.hasConflicts === true ||
+    mergeable === "CONFLICTING" ||
+    mergeStateStatus === "DIRTY"
+  ) {
     return {
       decision: "deny",
-      reason: `Blocked: cannot merge PR with failing CI check(s): ${failing.join(", ")}.`,
-    };
-  }
-  if (pending.length > 0 && !args.includes("--auto")) {
-    return {
-      decision: "deny",
-      reason: `Blocked: cannot merge PR while CI check(s) are still pending (${pending.join(", ")}). Wait for CI pass or use \`--auto\`.`,
+      ciStatus: "CONFLICTING",
+      reason:
+        "Blocked: PR has merge conflicts (`CONFLICTING` / `DIRTY`). Resolve conflicts against the base branch, re-run verification on the new commit, and re-check CI before merging.",
     };
   }
 
-  return { decision: "allow" };
+  if (Number(state.unresolvedBlockers ?? 0) > 0) {
+    return {
+      decision: "deny",
+      ciStatus: "BLOCKED",
+      reason: `Blocked: PR has ${state.unresolvedBlockers} unresolved review blocker(s).`,
+    };
+  }
+
+  const ci = classifyCiStatus(state, { cwd });
+
+  if (ci.status === "FAIL") {
+    return {
+      decision: "deny",
+      ciStatus: "FAIL",
+      reason: `Blocked: cannot merge PR with failing CI check(s): ${ci.failing.join(", ")}.`,
+    };
+  }
+
+  // PENDING always waits, even if `--auto` was passed on the command line.
+  if (ci.status === "PENDING") {
+    return {
+      decision: "deny",
+      ciStatus: "PENDING",
+      reason: `Blocked: cannot merge PR while CI check(s) are still pending (${ci.pending.join(", ")}). Wait until CI finishes and re-evaluate (do not use \`--auto\` to bypass pending checks).`,
+    };
+  }
+
+  if (ci.status === "UNKNOWN") {
+    return {
+      decision: "deny",
+      ciStatus: "UNKNOWN",
+      reason: `Blocked: CI check status is UNKNOWN (${ci.reason}). Diagnose why CI status could not be verified before merging.`,
+    };
+  }
+
+  // PASS, NO_TESTS, and UNAVAILABLE are allowed to proceed when PR is OPEN, non-Draft, and conflict-free.
+  return { decision: "allow", ciStatus: ci.status };
 };
 
 const runGit = (args, cwd) => {
@@ -281,7 +707,6 @@ const extractPushTargetBranches = (args) => {
     if (arg.startsWith("-")) continue;
     positionals.push(arg);
   }
-  // positionals[0] is remote (if any), positionals[1..] are refspecs.
   const refspecs = positionals.slice(1);
   return refspecs.map((spec) => {
     const cleaned = spec.startsWith("+") ? spec.slice(1) : spec;
@@ -317,13 +742,14 @@ export const evaluateBashCommand = (command, options = {}) => {
   const segments = splitSubcommands(command);
 
   const ghConfig = readGithubConfig(cwd);
+  let lastMergeStatus = null;
 
   for (const segment of segments) {
     const rawTokens = tokenize(segment);
     const tokens = stripCommandPrefixes(rawTokens);
     if (tokens.length === 0) continue;
 
-    // 4. Allow `gh pr merge` only after CI checks pass (fail-closed); block `gh api` merge bypasses.
+    // 4. Allow `gh pr merge` only under verified CI states (PASS, NO_TESTS, UNAVAILABLE); block `gh api` merge bypasses.
     if (tokens[0] === "gh" && tokens[1] === "pr" && tokens[2] === "merge") {
       const mergeResult = evaluatePrMerge(tokens.slice(3), {
         cwd,
@@ -333,6 +759,7 @@ export const evaluateBashCommand = (command, options = {}) => {
       if (mergeResult.decision === "deny") {
         return mergeResult;
       }
+      lastMergeStatus = mergeResult.ciStatus;
       continue;
     }
     if (
@@ -421,7 +848,7 @@ export const evaluateBashCommand = (command, options = {}) => {
     }
   }
 
-  return { decision: "allow" };
+  return lastMergeStatus ? { decision: "allow", ciStatus: lastMergeStatus } : { decision: "allow" };
 };
 
 export const handleGuardHookInput = (input, options = {}) => {

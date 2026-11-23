@@ -112,14 +112,37 @@ export const isOwnedSymlink = (destPath, expectedSkillDir, skillsRoot = path.dir
   return pathsEqual(canonActual, canonExpected);
 };
 
+const collectRelativeFiles = (baseDir, relPrefix = "", out = []) => {
+  const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name === ".DS_Store" || entry.name === MARKER_FILE) continue;
+    const rel = relPrefix ? `${relPrefix}/${entry.name}` : entry.name;
+    const full = path.join(baseDir, entry.name);
+    const stat = fs.lstatSync(full);
+    if (stat.isSymbolicLink()) {
+      throw new Error(`Unexpected symlink in skill directory: ${full}`);
+    }
+    if (stat.isDirectory()) {
+      collectRelativeFiles(full, rel, out);
+    } else if (stat.isFile()) {
+      out.push(rel);
+    }
+  }
+  return out.sort();
+};
+
 const verifyCopyDirContents = (destDir, sourceDir) => {
-  let entries;
+  let destEntries;
+  let srcEntries;
   try {
-    entries = fs.readdirSync(destDir, { withFileTypes: true });
+    destEntries = fs.readdirSync(destDir, { withFileTypes: true });
+    srcEntries = fs.readdirSync(sourceDir, { withFileTypes: true });
   } catch {
     return false;
   }
-  for (const entry of entries) {
+
+  // 1. Every entry in destDir (except MARKER_FILE) must exist in sourceDir with identical file/dir type and zero symlinks
+  for (const entry of destEntries) {
     if (entry.name === MARKER_FILE) continue;
     const destEntry = path.join(destDir, entry.name);
     const srcEntry = path.join(sourceDir, entry.name);
@@ -141,6 +164,20 @@ const verifyCopyDirContents = (destDir, sourceDir) => {
       return false;
     }
   }
+
+  // 2. Every entry in sourceDir must exist in destDir (detects missing managed files)
+  for (const srcEntry of srcEntries) {
+    if (srcEntry.name === ".DS_Store") continue;
+    const dstPath = path.join(destDir, srcEntry.name);
+    let dstStat;
+    try {
+      dstStat = fs.lstatSync(dstPath);
+    } catch {
+      return false;
+    }
+    if (dstStat.isSymbolicLink()) return false;
+  }
+
   return true;
 };
 
@@ -181,6 +218,7 @@ const verifyOrphanCopyDirContents = (destDir) => {
 };
 
 export const isOwnedCopyDir = (destPath, skillName, canonDestPath, expectedSourceDir, skillsRoot = expectedSourceDir ? path.dirname(expectedSourceDir) : null) => {
+  if (!isSafeSkillName(skillName)) return false;
   let stat;
   try {
     stat = fs.lstatSync(destPath);
@@ -230,44 +268,127 @@ export const isOwnedCopyDir = (destPath, skillName, canonDestPath, expectedSourc
   const pluginLines = lines.filter((l) => l.startsWith("plugin="));
 
   if (pluginLines.length === 1 && pluginLines[0] === `plugin=${PLUGIN_ID}`) {
+    // Require exact required marker metadata fields: skill=, install-path=, source=
     const skillLines = lines.filter((l) => l.startsWith("skill="));
-    if (skillLines.some((l) => l !== `skill=${skillName}`)) return false;
+    if (skillLines.length !== 1 || skillLines[0] !== `skill=${skillName}`) return false;
 
     const pathLines = lines.filter((l) => l.startsWith("install-path="));
-    for (const pathLine of pathLines) {
-      const markerInstallPath = pathLine.slice("install-path=".length);
-      if (!markerInstallPath || !pathsEqual(canonicalizePath(markerInstallPath), canonDestPath)) {
-        return false;
-      }
+    if (pathLines.length !== 1) return false;
+    const markerInstallPath = pathLines[0].slice("install-path=".length);
+    if (!markerInstallPath || !pathsEqual(canonicalizePath(markerInstallPath), canonDestPath)) {
+      return false;
     }
 
     const sourceLines = lines.filter((l) => l.startsWith("source="));
-    if (canonExpectedSource) {
-      for (const sourceLine of sourceLines) {
-        const markerSourcePath = sourceLine.slice("source=".length);
-        if (!markerSourcePath || !pathsEqual(canonicalizePath(markerSourcePath), canonExpectedSource)) {
+    if (sourceLines.length !== 1) return false;
+    const markerSourcePath = sourceLines[0].slice("source=".length);
+    if (!markerSourcePath) return false;
+    if (canonExpectedSource && !pathsEqual(canonicalizePath(markerSourcePath), canonExpectedSource)) {
+      return false;
+    }
+
+    const filesLines = lines.filter((l) => l.startsWith("files="));
+    if (filesLines.length > 1) return false;
+    if (filesLines.length === 1) {
+      const recordedFiles = filesLines[0]
+        .slice("files=".length)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .sort();
+      if (recordedFiles.length === 0) return false;
+      for (const relFile of recordedFiles) {
+        if (path.isAbsolute(relFile) || relFile.split("/").includes("..")) return false;
+        const fullFile = path.join(destPath, ...relFile.split("/"));
+        let fStat;
+        try {
+          fStat = fs.lstatSync(fullFile);
+        } catch {
           return false;
         }
+        if (!fStat.isFile() || fStat.isSymbolicLink()) return false;
+      }
+      try {
+        const actualFiles = collectRelativeFiles(destPath);
+        if (
+          actualFiles.length !== recordedFiles.length ||
+          actualFiles.some((f, idx) => f !== recordedFiles[idx])
+        ) {
+          return false;
+        }
+      } catch {
+        return false;
       }
     }
 
     return checkContents();
   }
 
-  if (lines.includes("managed-by=install.sh") && pluginLines.length === 0) {
+  // Legacy marker support: only pure single-line `managed-by=install.sh` without schema_version or plugin=
+  const hasSchemaVersion = lines.some((l) => l.startsWith("schema_version="));
+  if (lines.includes("managed-by=install.sh") && pluginLines.length === 0 && !hasSchemaVersion) {
     return checkContents();
   }
 
   return false;
 };
 
-export const isOwnedManifest = (manifestPath) => {
+const ALLOWED_MANIFEST_KEYS = new Set([
+  "schema_version",
+  "plugin",
+  "managed_by",
+  "install_scope",
+  "install_target",
+  "install_mode",
+  "source_root",
+]);
+
+export const isOwnedManifest = (manifestPath, expectedTargetDir = path.dirname(manifestPath)) => {
   try {
     const stat = fs.lstatSync(manifestPath);
     if (!stat.isFile() || stat.isSymbolicLink()) return false;
     const lines = fs.readFileSync(manifestPath, "utf8").split(/\r?\n/).filter(Boolean);
+    if (lines.length === 0) return false;
+
     const pluginLines = lines.filter((l) => l.startsWith("plugin="));
-    return pluginLines.length === 1 && pluginLines[0] === `plugin=${PLUGIN_ID}`;
+    if (pluginLines.length !== 1 || pluginLines[0] !== `plugin=${PLUGIN_ID}`) return false;
+
+    const schemaLines = lines.filter((l) => l.startsWith("schema_version="));
+    if (schemaLines.length > 1 || (schemaLines.length === 1 && schemaLines[0] !== "schema_version=1")) {
+      return false;
+    }
+
+    const canonExpectedTarget = canonicalizePath(expectedTargetDir);
+    const targetLines = lines.filter((l) => l.startsWith("install_target="));
+    if (targetLines.length > 1) return false;
+    if (targetLines.length === 1) {
+      const recTarget = targetLines[0].slice("install_target=".length);
+      if (!recTarget || !pathsEqual(canonicalizePath(recTarget), canonExpectedTarget)) {
+        return false;
+      }
+    }
+
+    for (const line of lines) {
+      if (line.startsWith("entry|")) {
+        const parts = line.split("|");
+        if (parts.length !== 5) return false;
+        const [, skillName, mode, destPath, sourcePath] = parts;
+        if (!isSafeSkillName(skillName)) return false;
+        if (mode !== "symlink" && mode !== "copy") return false;
+        if (!destPath || !sourcePath) return false;
+        if (!pathsEqual(canonicalizePath(destPath), path.join(canonExpectedTarget, skillName))) {
+          return false;
+        }
+        continue;
+      }
+      const eqIdx = line.indexOf("=");
+      if (eqIdx === -1) return false;
+      const key = line.slice(0, eqIdx);
+      const val = line.slice(eqIdx + 1);
+      if (!ALLOWED_MANIFEST_KEYS.has(key) || !val) return false;
+    }
+
+    return true;
   } catch {
     return false;
   }
@@ -276,7 +397,7 @@ export const isOwnedManifest = (manifestPath) => {
 const collectRetiredManifestCandidates = ({ manifestPath, activeSkillNames, canonTarget, canonRoot, skillsRoot }) => {
   const conflicts = [];
   const retiredPlan = [];
-  if (!isOwnedManifest(manifestPath)) {
+  if (!isOwnedManifest(manifestPath, canonTarget)) {
     return { conflicts, retiredPlan };
   }
   const lines = fs.readFileSync(manifestPath, "utf8").split(/\r?\n/).filter(Boolean);
@@ -443,7 +564,7 @@ export const runInstaller = ({
 
   try {
     fs.lstatSync(manifestPath);
-    if (!isOwnedManifest(manifestPath)) {
+    if (!isOwnedManifest(manifestPath, canonTarget)) {
       conflicts.push(`Conflict: refusing to overwrite unmanaged manifest file at ${manifestPath}.`);
     }
   } catch {
@@ -615,6 +736,7 @@ export const runInstaller = ({
     } else {
       fs.mkdirSync(dest, { recursive: true });
       fs.cpSync(skill.dir, dest, { recursive: true });
+      const relFiles = collectRelativeFiles(skill.dir);
       const markerContent = [
         "schema_version=1",
         `plugin=${PLUGIN_ID}`,
@@ -623,6 +745,7 @@ export const runInstaller = ({
         `skill=${skill.name}`,
         `install-path=${dest}`,
         `source=${skill.dir}`,
+        `files=${relFiles.join(",")}`,
         "",
       ].join("\n");
       fs.writeFileSync(path.join(dest, MARKER_FILE), markerContent, "utf8");
@@ -638,7 +761,7 @@ export const runInstaller = ({
   } catch {
     existingManifest = false;
   }
-  if (existingManifest && !isOwnedManifest(manifestPath)) {
+  if (existingManifest && !isOwnedManifest(manifestPath, canonTarget)) {
     throw new Error(`Manifest ownership verification failed for ${manifestPath}. Aborting.`);
   }
 
@@ -678,13 +801,62 @@ export const runUninstaller = ({
   const conflicts = [];
   const plan = [];
 
+  let hasManifestOnDisk = false;
   try {
     fs.lstatSync(manifestPath);
-    if (!isOwnedManifest(manifestPath)) {
+    hasManifestOnDisk = true;
+    if (!isOwnedManifest(manifestPath, canonTarget)) {
       conflicts.push(`Conflict: refusing to remove unmanaged manifest file at ${manifestPath}.`);
     }
   } catch {
-    // Manifest does not exist
+    hasManifestOnDisk = false;
+  }
+
+  // If an owned manifest exists, verify every entry's target path exists and matches before allowing uninstall
+  if (hasManifestOnDisk && conflicts.length === 0) {
+    const manifestLines = fs.readFileSync(manifestPath, "utf8").split(/\r?\n/).filter(Boolean);
+    for (const line of manifestLines) {
+      if (!line.startsWith("entry|")) continue;
+      const [, recSkill, recMode, recDest, recSource] = line.split("|");
+      const expectedDest = path.join(canonTarget, recSkill);
+      let recStat = null;
+      try {
+        recStat = fs.lstatSync(expectedDest);
+      } catch {
+        recStat = null;
+      }
+      if (recStat) {
+        if (recMode === "symlink" && !recStat.isSymbolicLink()) {
+          conflicts.push(`Conflict: manifest entry '${recSkill}' expected symlink at ${expectedDest}.`);
+        } else if (recMode === "copy" && (!recStat.isDirectory() || recStat.isSymbolicLink())) {
+          conflicts.push(`Conflict: manifest entry '${recSkill}' expected copy directory at ${expectedDest}.`);
+        }
+      }
+      if (!pathsEqual(canonicalizePath(recDest), expectedDest)) {
+        conflicts.push(`Conflict: manifest entry path mismatch for '${recSkill}' (${recDest}).`);
+      }
+      const expectedSrc = canonicalizePath(path.join(skillsRoot, recSkill));
+      if (!pathsEqual(canonicalizePath(recSource), expectedSrc)) {
+        conflicts.push(`Conflict: manifest entry source mismatch for '${recSkill}' (${recSource}).`);
+      }
+    }
+
+    const listedSkills = new Set(
+      manifestLines
+        .filter((l) => l.startsWith("entry|"))
+        .map((l) => l.split("|")[1]),
+    );
+    if (fs.existsSync(canonTarget)) {
+      for (const dirEntry of fs.readdirSync(canonTarget, { withFileTypes: true })) {
+        if (!dirEntry.isDirectory()) continue;
+        const markerCandidate = path.join(canonTarget, dirEntry.name, MARKER_FILE);
+        if (fs.existsSync(markerCandidate) && !listedSkills.has(dirEntry.name)) {
+          conflicts.push(
+            `Conflict: directory ${path.join(canonTarget, dirEntry.name)} has ${MARKER_FILE} but is not listed in ${manifestPath}.`,
+          );
+        }
+      }
+    }
   }
 
   // Pass 1: Pre-flight candidate collection, install-type classification, ownership & path verification (zero deletions)
@@ -797,14 +969,14 @@ export const runUninstaller = ({
 
   if (hasManifest) {
     if (dryRun) {
-      if (isOwnedManifest(manifestPath)) {
+      if (isOwnedManifest(manifestPath, canonTarget)) {
         actions.push(`[dry-run] Would remove ownership manifest: ${manifestPath}`);
       }
     } else {
       if (!verifyDestWithinTarget(manifestPath, canonTarget, canonRoot, MANIFEST_FILE)) {
         throw new Error(`Manifest path verification failed for ${manifestPath}. Aborting.`);
       }
-      if (!isOwnedManifest(manifestPath)) {
+      if (!isOwnedManifest(manifestPath, canonTarget)) {
         throw new Error(`Manifest ownership verification failed for ${manifestPath}. Aborting.`);
       }
       fs.unlinkSync(manifestPath);
