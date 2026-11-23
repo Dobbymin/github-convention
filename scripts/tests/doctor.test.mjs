@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { detectCompanionPlugins } from "../../hooks/session-start.mjs";
 import { runDoctor } from "../doctor.mjs";
+import { runInstaller } from "../install.mjs";
 import { REPO_ROOT } from "../validate.mjs";
 
 const makeTempDir = (prefix = "gh-conv-doctor-") =>
@@ -52,20 +53,14 @@ test("detectCompanionPlugins detects dev-principles in Antigravity plugin/skill 
   }
 });
 
-test("runDoctor inspects repo conventions, hooks, companion status, and manifest integrity", () => {
+test("runDoctor inspects repo conventions, hooks, companion status, and deep manifest ownership integrity", () => {
   const tempDir = makeTempDir("gh-conv-doc-");
   const skillsTarget = path.join(tempDir, ".agents", "skills");
   try {
     fs.mkdirSync(path.join(tempDir, ".git"), { recursive: true });
-    fs.mkdirSync(skillsTarget, { recursive: true });
 
-    // 1. Valid manifest with existing entry
-    const skillDest = path.join(skillsTarget, "using-github-convention");
-    fs.mkdirSync(skillDest, { recursive: true });
-    fs.writeFileSync(
-      path.join(skillsTarget, ".github-convention-install-manifest"),
-      `schema_version=1\nplugin=github-convention\nentry|using-github-convention|copy|${skillDest}|src\n`,
-    );
+    // 1. Valid copy install via runInstaller -> status "ok"
+    runInstaller({ target: skillsTarget, mode: "copy" });
 
     const okReport = runDoctor({
       cwd: tempDir,
@@ -78,8 +73,25 @@ test("runDoctor inspects repo conventions, hooks, companion status, and manifest
     assert.equal(okReport.hooks.claudeHooksJson, true);
     assert.equal(okReport.hooks.antigravityHooksJson, true);
     assert.equal(okReport.installManifests[0].status, "ok");
+    assert.equal(okReport.installManifests[0].entries, 6);
+    assert.deepEqual(okReport.installManifests[0].tamperedEntries, []);
 
-    // 2. Missing entry detected
+    // 2. Tampered entry (unexpected user file added inside copy dir) -> status "tampered_entries"
+    const skillDest = path.join(skillsTarget, "using-github-convention");
+    const injectedFile = path.join(skillDest, "user-injected.txt");
+    fs.writeFileSync(injectedFile, "tampered\n");
+    const tamperedReport = runDoctor({
+      cwd: tempDir,
+      env: {},
+      pluginRoot: REPO_ROOT,
+      homeDir: null,
+      target: skillsTarget,
+    });
+    assert.equal(tamperedReport.installManifests[0].status, "tampered_entries");
+    assert.deepEqual(tamperedReport.installManifests[0].tamperedEntries, ["using-github-convention"]);
+    fs.unlinkSync(injectedFile);
+
+    // 3. Missing entry detected -> status "missing_entries"
     fs.rmSync(skillDest, { recursive: true, force: true });
     const missingReport = runDoctor({
       cwd: tempDir,
@@ -91,7 +103,7 @@ test("runDoctor inspects repo conventions, hooks, companion status, and manifest
     assert.equal(missingReport.installManifests[0].status, "missing_entries");
     assert.deepEqual(missingReport.installManifests[0].missingEntries, ["using-github-convention"]);
 
-    // 3. CLI --json output
+    // 4. CLI --json output
     const cliRes = spawnSync(
       process.execPath,
       [path.join(REPO_ROOT, "scripts", "doctor.mjs"), "--cwd", REPO_ROOT, "--json"],

@@ -6,6 +6,14 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { detectCompanionPlugins, resolveContextMode } from "../hooks/session-start.mjs";
+import {
+  canonicalizePath,
+  isOwnedCopyDir,
+  isOwnedManifest,
+  isOwnedSymlink,
+  isSafeSkillName,
+  verifyDestWithinTarget,
+} from "./install.mjs";
 
 const DEFAULT_PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MANIFEST_FILE = ".github-convention-install-manifest";
@@ -36,36 +44,92 @@ const findGitRoot = (startDir) => {
   }
 };
 
-const inspectInstallManifest = (skillsDir) => {
-  const resolvedDir = path.resolve(skillsDir);
+const inspectInstallManifest = (skillsDir, pluginRoot = DEFAULT_PLUGIN_ROOT) => {
+  const resolvedDir = canonicalizePath(skillsDir);
+  const canonRoot = canonicalizePath(pluginRoot);
+  const skillsRoot = path.join(canonRoot, "skills");
   const manifestPath = path.join(resolvedDir, MANIFEST_FILE);
-  if (!fs.existsSync(manifestPath)) {
-    return { target: resolvedDir, status: "not_installed", entries: 0, missingEntries: [] };
+  try {
+    fs.lstatSync(manifestPath);
+  } catch {
+    return {
+      target: resolvedDir,
+      status: "not_installed",
+      entries: 0,
+      missingEntries: [],
+      tamperedEntries: [],
+    };
   }
   try {
+    if (!isOwnedManifest(manifestPath)) {
+      return {
+        target: resolvedDir,
+        status: "unmanaged",
+        entries: 0,
+        missingEntries: [],
+        tamperedEntries: [],
+      };
+    }
     const raw = fs.readFileSync(manifestPath, "utf8");
     const lines = raw.split(/\r?\n/).filter(Boolean);
-    if (!lines.includes("plugin=github-convention")) {
-      return { target: resolvedDir, status: "unmanaged", entries: 0, missingEntries: [] };
-    }
     const entryLines = lines.filter((line) => line.startsWith("entry|"));
     const missingEntries = [];
+    const tamperedEntries = [];
     for (const line of entryLines) {
       const parts = line.split("|");
-      const skillName = parts[1];
-      const destPath = parts[3];
-      if (!destPath || !fs.existsSync(destPath)) {
-        missingEntries.push(skillName || destPath || "unknown");
+      const skillName = parts[1] ?? "";
+      const mode = parts[2] ?? "";
+      const destPath = parts[3] ? canonicalizePath(parts[3]) : path.join(resolvedDir, skillName);
+      const expectedSource = parts[4]
+        ? canonicalizePath(parts[4])
+        : path.join(skillsRoot, skillName);
+
+      if (!isSafeSkillName(skillName) || !verifyDestWithinTarget(destPath, resolvedDir, canonRoot, skillName)) {
+        tamperedEntries.push(skillName || destPath || "unknown");
+        continue;
       }
+
+      let stat;
+      try {
+        stat = fs.lstatSync(destPath);
+      } catch {
+        missingEntries.push(skillName);
+        continue;
+      }
+
+      if (mode === "symlink") {
+        if (!stat.isSymbolicLink() || !isOwnedSymlink(destPath, expectedSource, skillsRoot)) {
+          tamperedEntries.push(skillName);
+        }
+      } else if (mode === "copy") {
+        if (!stat.isDirectory() || stat.isSymbolicLink() || !isOwnedCopyDir(destPath, skillName, destPath, expectedSource, skillsRoot)) {
+          tamperedEntries.push(skillName);
+        }
+      } else {
+        tamperedEntries.push(skillName);
+      }
+    }
+    let status = "ok";
+    if (tamperedEntries.length > 0) {
+      status = "tampered_entries";
+    } else if (missingEntries.length > 0) {
+      status = "missing_entries";
     }
     return {
       target: resolvedDir,
-      status: missingEntries.length === 0 ? "ok" : "missing_entries",
+      status,
       entries: entryLines.length,
       missingEntries,
+      tamperedEntries,
     };
   } catch {
-    return { target: resolvedDir, status: "unreadable", entries: 0, missingEntries: [] };
+    return {
+      target: resolvedDir,
+      status: "unreadable",
+      entries: 0,
+      missingEntries: [],
+      tamperedEntries: [],
+    };
   }
 };
 
@@ -131,7 +195,7 @@ export const runDoctor = ({
         path.join(resolvedCwd, ".agents", "skills"),
         ...(effectiveHomeDir ? [path.join(effectiveHomeDir, ".agents", "skills")] : []),
       ];
-  const installManifests = manifestTargets.map(inspectInstallManifest);
+  const installManifests = manifestTargets.map((t) => inspectInstallManifest(t, pluginRoot));
 
   return {
     ok: Boolean(gitVersion) && hooks.sessionStartScript && hooks.guardBashScript,
@@ -166,7 +230,8 @@ const formatTextReport = (report) => {
     `- Session: companions=[${report.session.companions.join(", ")}], contextMode=${report.session.contextMode}`,
     `- Install Manifests:`,
     ...report.installManifests.map(
-      (m) => `  - ${m.target}: ${m.status} (entries=${m.entries}${m.missingEntries.length ? `, missing=[${m.missingEntries.join(", ")}]` : ""})`,
+      (m) =>
+        `  - ${m.target}: ${m.status} (entries=${m.entries}${m.missingEntries.length ? `, missing=[${m.missingEntries.join(", ")}]` : ""}${m.tamperedEntries?.length ? `, tampered=[${m.tamperedEntries.join(", ")}]` : ""})`,
     ),
   ];
   return `${lines.join("\n")}\n`;
