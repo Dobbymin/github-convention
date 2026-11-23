@@ -136,22 +136,26 @@ session:
 
 Git과 GitHub 상태를 바꾸는 모든 작업의 최종 권한은 **Orchestrator(메인 에이전트)** 에 있습니다.
 
-- **Orchestrator 전용 변경 작업**: Issue 생성·수정, Branch 생성·변경, Worktree 관리, Commit, Push, PR 생성·수정, 리뷰 스레드 해결, CI 통과 후 PR Merge, Release·Tag 생성, Rollback
+- **Orchestrator 전용 변경 작업**: Issue 생성·수정, Branch 생성·변경, Worktree 관리, Commit, Push, PR 생성·수정, PR 충돌 해결, 리뷰 스레드 해결, CI 검증 후 PR Merge, Release·Tag 생성, Rollback
 - **Worker와 Reviewer 제한**: `agents/task-worker.md`, `agents/pr-reviewer.md`, `agents/repo-analyzer.md`는 물론 `dev-principles`의 Reviewer를 포함한 외부 리뷰어도 명시적 위임 없이 Git/GitHub 변경 작업을 수행할 수 없습니다.
-- **불변 금지 규칙 및 CI 게이트**: 보호된 기본 브랜치에 직접 Push할 수 없습니다. `push` → PR 생성 후 모든 테스트와 CI가 통과하고 미해결 Blocker가 없으면 Orchestrator가 `gh pr merge`를 수행하며, `guard-bash.mjs`가 CI 미통과·실패·Draft·`--admin`·`gh api` 우회 머지를 차단합니다(수동 머지 유지가 필요하면 `.github-convention/config.yaml`에 `github.auto_merge_on_ci_pass: false`를 지정합니다).
+- **6상태 CI 분류, PR 충돌 자동 해결 및 `merge_method` 정책**:
+  - 보호된 기본 브랜치에 직접 Push할 수 없습니다.
+  - PR에 충돌(`CONFLICTING` / `DIRTY`)이 발생하면 10단계 충돌 해결 절차(대상 base 브랜치 확인 → 최신 원격 base fetch → 변경 비교 → 원인 분석 → 충돌 해결 → 기존 변경·Issue 요구사항 보존 확인 → 테스트·품질 게이트 실행 → Commit & Push → 충돌 해소 재확인 → 새 커밋 기준 CI 및 자동 머지 조건 재평가)를 따릅니다. `git reset --hard`나 무조건적인 `git checkout --ours`/`--theirs`는 금지하며, 복잡한 설계 충돌은 사용자에게 확인합니다.
+  - CI 상태는 `PASS`(모두 통과 → 머지 허용), `FAIL`(실패 → 머지 차단), `PENDING`(실행 중 → 항상 대기, `--auto` 우회 금지), `NO_TESTS`(테스트 없음 → 머지 허용), `UNAVAILABLE`(Actions 사용량/과금 한도 초과 또는 CI 비활성화로 실행 불가 → 로컬 검증 후 머지 허용), `UNKNOWN`(PR 또는 CI 상태 조회 불가 → 머지 차단 및 원인 분석)으로 구분합니다.
+  - PR이 `OPEN` 상태이고 Draft가 아니며, 충돌과 미해결 Blocker가 없고 `PASS` / `NO_TESTS` / `UNAVAILABLE`이면 `.github-convention/config.yaml`의 `github.merge_method`(`squash` | `merge` | `rebase`, 기본값 `squash`)에 따라 `gh pr merge <PR> --<method> --delete-branch`를 실행합니다(`github.auto_merge_on_ci_pass: false` 설정 시 수동 머지 유지). `guard-bash.mjs`가 `FAIL`, `PENDING`, `UNKNOWN`, `CLOSED`, `MERGED`, `Draft`, 충돌 상태, `--admin`, `gh api` 우회 머지를 차단합니다.
 - **언어 정책**: Issue, PR, 커밋, Worker Report, PR 리뷰 보고서 모두 사용자의 요청 언어를 따릅니다(한국어 요청 시 한국어, 영어 요청 시 영어, 별도 지정 시 해당 언어 우선). 기술 식별자, 코드, Git 명령어, Conventional Commit 접두사, 상태 토큰(`READY_FOR_PR`, `BLOCKED`, `PASS`, `FAIL`)은 원문을 유지합니다.
 
 ---
 
 ## 6. 설치 경로와 소유권 관리
 
-`install.sh`와 `uninstall.sh`는 기존 파일이나 다른 플러그인의 자산을 덮어쓰거나 삭제하지 않도록 2단계 사전 검증(Pre-flight)을 수행합니다.
+`install.sh`, `uninstall.sh`, `scripts/install.mjs`는 기존 파일이나 다른 플러그인의 자산을 덮어쓰거나 삭제하지 않도록 2단계 사전 검증(Pre-flight)과 삭제 직전 독립 재검증을 수행합니다.
 
 - **지원 범위**: `--scope project`(`$(pwd)/.agents/skills`), `--scope global`(`${HOME}/.agents/skills`), `--target <dir>`, `--copy`, `--dry-run`
-- **소유권 매니페스트**: 설치 완료 시 대상 디렉터리에 `.github-convention-install-manifest`를 기록해 플러그인 식별자(`plugin=github-convention`), 설치 범위·경로·방식, 관리 대상 스킬 목록을 추적합니다.
-- **심볼릭 링크 소유권 확인**: 단순 경로 접미사(`*/skills/<name>`) 비교를 쓰지 않고, 상대/절대 링크 대상을 기준 디렉터리와 함께 정규화(`pwd -P`)해 현재 저장소의 `skills/<name>`과 정확히 일치할 때만 소유한 링크로 인정합니다.
-- **복사 디렉터리 소유권 및 레거시 마이그레이션**: `--copy` 설치 시 대상 디렉터리에 `plugin=github-convention`, `skill=<name>`, `install-path=<경로>`가 기록된 `.github-convention-script-managed` 마커를 생성합니다. 기존 `managed-by=install.sh` 단독 레거시 마커는 타 플러그인 표시가 없고 `SKILL.md`의 `name:`이 일치할 때만 소유권으로 인정하며, 소유권이 불명확한 디렉터리는 덮어쓰거나 삭제하지 않습니다.
-- **삭제 전 경로 재검증 및 원자적 중단**: 6개 스킬 중 하나라도 소유하지 않은 파일, 비어 있거나 마커가 없는 디렉터리, 외부 심볼릭 링크, 경로 이탈이 감지되면 실제 변경 없이 즉시 중단합니다. 삭제 직전에도 대상 경로가 `--target` 하위에 있는지 다시 검증합니다.
+- **소유권 매니페스트**: 설치 완료 시 대상 디렉터리에 `.github-convention-install-manifest`를 기록해 스키마 버전(`schema_version=1`), 플러그인 식별자(`plugin=github-convention`), 설치 범위·경로·방식, 관리 대상 스킬 목록(`entry|<skill>|<mode>|<dest>|<source>`)을 엄격히 검증합니다.
+- **심볼릭 링크 소유권 확인**: 단순 경로 접미사(`*/skills/<name>`) 비교를 쓰지 않고, 상대/절대 링크 대상을 기준 디렉터리와 함께 정규화(`pwd -P` / `realpathSync`)해 현재 저장소의 `skills/<name>`과 정확히 일치할 때만 소유한 링크로 인정합니다.
+- **복사 디렉터리 소유권 및 파일 목록 검증**: `--copy` 설치 시 대상 디렉터리에 `plugin=github-convention`, `skill=<name>`, `install-path=<경로>`, `source=<원본경로>`, `files=<파일목록>`이 모두 기록된 `.github-convention-script-managed` 마커를 생성합니다. 필수 필드가 하나라도 누락되거나 불일치하면 소유권을 인정하지 않으며, 마커가 존재하더라도 디렉터리 내부 파일 구성이 원본 스킬 디렉터리와 다르거나 사용자가 추가한 파일·심볼릭 링크가 섞여 있으면 덮어쓰거나 `rm -rf`로 삭제하지 않고 보존합니다.
+- **삭제 직전 독립 재검증 및 원자적 중단**: 6개 스킬 중 하나라도 소유하지 않은 파일, 마커가 없거나 불완전한 디렉터리, 외부 심볼릭 링크, 경로 이탈, 매니페스트 변조가 감지되면 실제 변경 없이 즉시 중단합니다. 삭제 직전에도 `if ! ... exit 1` 독립 가드로 경로와 소유권을 재검증합니다.
 
 ---
 

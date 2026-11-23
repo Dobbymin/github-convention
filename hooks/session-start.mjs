@@ -161,7 +161,7 @@ const buildCompactContext = ({ modeHeader, companions }) => {
     "Priority: safety invariants > project config (.github-convention/config.yaml, repo docs) > user config > plugin defaults.",
     "Scope split: github-convention owns Git/GitHub workflow (Issue, Branch, Worktree, Commit, Push, PR, CI, Release) and Orchestrator Git mutation authority; code architecture, SoC, type safety, and Rule ID reviews remain with dev-principles.",
     "Entry: read `skills/using-github-convention/SKILL.md` and load only the active phase skill (`issue-planning`, `parallel-execution`, `git-pr-workflow`, `review-ci-loop`, `release-and-recovery`).",
-    "Guardrails: match user language (keep technical identifiers/prefixes/`Closes #N` verbatim), obtain explicit approval before remote writes/releases/rollbacks, keep Git/GitHub mutations Orchestrator-only (never workers/reviewers), never push default branch, and merge PRs only after all tests/CI checks pass (unless `github.auto_merge_on_ci_pass: false`).",
+    "Guardrails: match user language (keep technical identifiers/prefixes/`Closes #N` verbatim), obtain explicit approval before remote writes/releases/rollbacks, keep Git/GitHub mutations Orchestrator-only (never workers/reviewers), never push default branch, resolve PR conflicts safely (re-verifying on the new commit), and merge OPEN non-Draft conflict-free PRs on CI `PASS`/`NO_TESTS`/`UNAVAILABLE` (always wait on `PENDING`, block `FAIL`/`UNKNOWN`) using `github.merge_method` (`squash`|`merge`|`rebase`, default `squash`) unless `github.auto_merge_on_ci_pass: false`.",
   ].join("\n");
 };
 
@@ -181,7 +181,7 @@ const buildStandaloneAutoContext = ({ modeHeader }) =>
     "- Zero-config default from `.github/`, templates, labels, CI, and git history; `.github-convention/config.yaml` overrides when present.",
     "- Language: match user language for Issues, PRs, commits, and reports; keep technical identifiers, commands, prefixes, and `Closes #N` verbatim.",
     "- Approval: require explicit user approval before creating Issues, changing hooks/CI/branch protection, architecture changes from review, tags/releases, or rollbacks.",
-    "- Authority: Orchestrator owns all Git/GitHub mutations (Workers/Reviewers never commit, push, or mutate GitHub). Never push directly to default branch; Orchestrator merges PRs only after all tests/CI checks pass with zero blockers (unless `github.auto_merge_on_ci_pass: false`).",
+    "- Authority: Orchestrator owns all Git/GitHub mutations (Workers/Reviewers never commit, push, or mutate GitHub). Never push directly to default branch; resolve PR conflicts via 10-step flow and merge OPEN non-Draft conflict-free PRs on CI `PASS`/`NO_TESTS`/`UNAVAILABLE` (always wait on `PENDING`, block `FAIL`/`UNKNOWN`) using `github.merge_method` (`squash`|`merge`|`rebase`, default `squash`) unless `github.auto_merge_on_ci_pass: false`.",
   ].join("\n");
 
 const isAntigravityInvocation = ({ stdinInput, env }) =>

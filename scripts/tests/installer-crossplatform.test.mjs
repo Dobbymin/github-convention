@@ -409,6 +409,76 @@ test("16-scenario ownership, forged marker, pre-deletion re-verification, and rm
     runUninstaller({ target: orphanTarget });
     assert.equal(fs.existsSync(retiredDir), false);
 
+    // 7.3 Extended install/uninstall ownership & manifest integrity cases (13 required cases)
+    const extTarget = path.join(tempDir, "s18-extended-13");
+    runInstaller({ target: extTarget, mode: "copy" });
+    const canonExtTarget = canonicalizePath(extTarget);
+    const extSkillDir = path.join(canonExtTarget, "using-github-convention");
+    const extMarker = path.join(extSkillDir, ".github-convention-script-managed");
+    const extManifest = path.join(canonExtTarget, ".github-convention-install-manifest");
+    const origExtMarker = fs.readFileSync(extMarker, "utf8");
+    const origExtManifest = fs.readFileSync(extManifest, "utf8");
+
+    // (a) Missing required fields in marker (e.g. missing skill=, install-path=, or source=) -> refused
+    for (const fieldToDrop of [/^skill=.*\n/m, /^install-path=.*\n/m, /^source=.*\n/m]) {
+      fs.writeFileSync(extMarker, origExtMarker.replace(fieldToDrop, ""));
+      assert.throws(() => runUninstaller({ target: extTarget }), /unmanaged path/);
+      assert.equal(fs.existsSync(extSkillDir), true);
+    }
+
+    // (b) Wrong Skill ID in marker -> refused
+    fs.writeFileSync(extMarker, origExtMarker.replace("skill=using-github-convention", "skill=wrong-skill-id"));
+    assert.throws(() => runUninstaller({ target: extTarget }), /unmanaged path/);
+    fs.writeFileSync(extMarker, origExtMarker);
+
+    // (c) Manifest tampering (invalid schema_version, unknown line, or mismatched install_target) -> refused
+    fs.writeFileSync(extManifest, origExtManifest.replace("schema_version=1", "schema_version=999"));
+    assert.throws(() => runUninstaller({ target: extTarget }), /unmanaged manifest/);
+    fs.writeFileSync(extManifest, `${origExtManifest}corrupted_line_without_equals\n`);
+    assert.throws(() => runUninstaller({ target: extTarget }), /unmanaged manifest/);
+    fs.writeFileSync(extManifest, origExtManifest);
+
+    // (d) Missing managed file inside copy directory (SKILL.md or file listed in files=) -> refused
+    fs.writeFileSync(extMarker, origExtMarker.replace("files=SKILL.md", "files=SKILL.md,missing-managed.md"));
+    assert.throws(() => runUninstaller({ target: extTarget }), /unmanaged path/);
+    fs.writeFileSync(extMarker, origExtMarker);
+
+    // (e) Directory with .github-convention-script-managed marker that is NOT listed in manifest -> refused
+    const unlistedManifest = origExtManifest
+      .split(/\r?\n/)
+      .filter((l) => !l.startsWith("entry|using-github-convention|"))
+      .join("\n") + "\n";
+    fs.writeFileSync(extManifest, unlistedManifest);
+    assert.throws(() => runUninstaller({ target: extTarget }), /not listed in/);
+    fs.writeFileSync(extManifest, origExtManifest);
+
+    // (f) Symlink path escape inside copy directory -> refused
+    const innerEscapeLink = path.join(extSkillDir, "escape-link");
+    fs.symlinkSync(outsideDir, innerEscapeLink, LINK_TYPE);
+    assert.throws(() => runUninstaller({ target: extTarget }), /unmanaged path/);
+    fs.rmSync(innerEscapeLink, { recursive: true, force: true });
+
+    // (g) Partial deletion failure mid-Pass-2 preserves external/co-installed files and tampered target
+    const foreignCoDir = path.join(canonExtTarget, "external-plugin-skill");
+    fs.mkdirSync(foreignCoDir, { recursive: true });
+    fs.writeFileSync(path.join(foreignCoDir, "SKILL.md"), "# external\n");
+    const secondSkillDest = path.join(canonExtTarget, ALL_SKILLS[1]); // issue-planning
+    assert.throws(
+      () =>
+        runUninstaller({
+          target: extTarget,
+          beforeRemoveHook: ({ dest }) => {
+            if (dest === secondSkillDest) {
+              fs.writeFileSync(path.join(dest, "user-added-mid-uninstall.txt"), "preserve me\n");
+            }
+          },
+        }),
+      /Copy directory ownership verification failed/,
+    );
+    // First skill was removed, but second skill (with user file) and external plugin skill are preserved
+    assert.equal(fs.existsSync(path.join(secondSkillDest, "user-added-mid-uninstall.txt")), true);
+    assert.equal(fs.existsSync(path.join(foreignCoDir, "SKILL.md")), true);
+
     // POSIX shell (install.sh / uninstall.sh) explicit check for forged marker, unexpected file inside copy dir, and pre-deletion abort
     if (process.platform !== "win32") {
       const shTarget = path.join(tempDir, "sh-matrix");

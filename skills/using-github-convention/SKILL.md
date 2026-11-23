@@ -54,7 +54,7 @@ Never treat `--yes`, non-interactive mode, a previous ambiguous reply, or silenc
 - Workers (`agents/task-worker.md`), Reviewers (`agents/pr-reviewer.md`, `agents/repo-analyzer.md`), and any companion/external reviewers (such as `dev-principles`'s `principles-reviewer`, `architecture-reviewer`, and `security-reviewer`) must never perform undelegated Git or GitHub mutations, even when co-installed.
 - Prefer the user's existing `gh auth` session; use a connected Agent GitHub tool only when `gh` cannot perform the operation.
 - Never push directly to the protected default branch.
-- By default, after `git push` and PR creation, Orchestrator monitors tests/CI and merges the PR (`gh pr merge`) once all required checks pass and zero unresolved blockers remain (never use `--admin` or merge failing/pending/Draft PRs). Set `github.auto_merge_on_ci_pass: false` in `.github-convention/config.yaml` when manual merge is desired.
+- By default (`github.auto_merge_on_ci_pass: true`), after `git push` and PR creation, Orchestrator resolves any PR merge conflicts safely (10-step flow without `git reset --hard` or blind `--ours`/`--theirs`), evaluates the 6 CI states (`PASS`, `FAIL`, `PENDING`, `NO_TESTS`, `UNAVAILABLE`, `UNKNOWN`), always waits on `PENDING` (never bypassing via `--auto`), blocks on `FAIL` or `UNKNOWN`, and merges `OPEN` non-Draft conflict-free PRs on `PASS`, `NO_TESTS`, or `UNAVAILABLE` using the configured `github.merge_method` (`squash` | `merge` | `rebase`, default `squash`) with `--delete-branch` (never `--admin` or raw `gh api` merge). Set `github.auto_merge_on_ci_pass: false` in `.github-convention/config.yaml` when manual merge is desired.
 
 ## Companion Plugin Boundaries
 

@@ -14,9 +14,9 @@
 - **플러그인 네이티브 구조:** 별도 빌드나 외부 의존성 없이 `gh` CLI와 에이전트 네이티브 도구에 위임합니다.
 - **Zero-Config 기본 동작:** `.github-convention/config.yaml`이 없는 일반 Git 저장소에서도 `.github/` 템플릿, 라벨, CI, 커밋 이력을 읽어 동작하며, 비기본 타깃 base 브랜치와 기존·신규 품질 게이트 실패 분리를 지원합니다.
 - **단계별 스킬 분리 & 경량 부트스트랩:** 모든 `SKILL.md`를 8KB(8,192바이트) 이하로 분리하고, `SessionStart` 훅이 핵심 라우팅·가드레일 요약만 주입합니다(`dev-principles` 동반 감지 시 중복 자동 축소).
-- **다중 하네스 결정론적 안전 훅:** Claude Code·Cursor([`hooks/hooks.json`](hooks/hooks.json)) 및 Antigravity([`hooks.json`](hooks.json))에서 `--force` 단독 사용, 기본 브랜치 직접 푸시, `--no-verify`, CI 미통과/`--admin`/Draft 상태의 `gh pr merge`, `gh api` 머지 우회, 스테이징된 시크릿 커밋을 코드 수준에서 차단합니다.
-- **CI 게이트 기반 PR 자동 머지:** `push` → PR 생성 후 테스트·CI가 모두 통과하면 기본 워크플로우로 PR을 자동 머지합니다(`.github-convention/config.yaml`에서 `github.auto_merge_on_ci_pass: false`로 수동 전환 가능).
-- **동반 플러그인 호환성 & 소유권 검증:** `dev-principles`와 독립적으로 설치·업데이트·삭제되며, [`install.sh`](install.sh)/[`uninstall.sh`](uninstall.sh)가 소유권 매니페스트와 정규화 경로를 검증해 외부 파일을 덮어쓰거나 삭제하지 않습니다.
+- **다중 하네스 결정론적 안전 훅:** Claude Code·Cursor([`hooks/hooks.json`](hooks/hooks.json)) 및 Antigravity([`hooks.json`](hooks.json))에서 `--force` 단독 사용, 기본 브랜치 직접 푸시, `--no-verify`, 실패(`FAIL`)·실행 중(`PENDING`)·확인 불가(`UNKNOWN`)·충돌(`CONFLICTING`)·`--admin`·Draft·비-OPEN 상태의 `gh pr merge`, `gh api` 머지 우회, 스테이징된 시크릿 커밋을 코드 수준에서 차단합니다.
+- **6상태 CI 분류 & PR 충돌 해결·자동 머지:** `push` → PR 생성 후 충돌이 있으면 10단계 안전 절차로 먼저 해소하고, CI 상태를 6가지(`PASS`, `FAIL`, `PENDING`, `NO_TESTS`, `UNAVAILABLE`, `UNKNOWN`)로 분류합니다. `PENDING`에서는 항상 대기(`--auto` 우회 금지)하며, `PASS`·`NO_TESTS`·`UNAVAILABLE` 상태에서 `github.merge_method`(`squash` | `merge` | `rebase`, 기본값 `squash`)에 따라 PR을 자동 머지합니다(`.github-convention/config.yaml`에서 `github.auto_merge_on_ci_pass: false`로 수동 전환 가능).
+- **동반 플러그인 호환성 & 소유권 검증:** `dev-principles`와 독립적으로 설치·업데이트·삭제되며, [`install.sh`](install.sh)/[`uninstall.sh`](uninstall.sh)/[`scripts/install.mjs`](scripts/install.mjs)가 소유권 매니페스트·필수 마커 필드·파일 목록·정규화 경로를 사전 검증 및 삭제 직전 독립 재검증해 외부 파일이나 사용자 추가 파일을 덮어쓰거나 삭제하지 않습니다.
 
 ---
 

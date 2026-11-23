@@ -124,6 +124,7 @@ is_owned_symlink() {
 verify_copy_dir_contents() {
   _VC_DEST="$1"
   _VC_SOURCE="$2"
+  # 1. Every entry in DEST (except marker) must exist in SOURCE with identical type and no symlinks
   for _VC_ENTRY in "$_VC_DEST"/* "$_VC_DEST"/.*; do
     [ -e "$_VC_ENTRY" ] || [ -L "$_VC_ENTRY" ] || continue
     _VC_NAME="$(basename -- "$_VC_ENTRY")"
@@ -143,6 +144,18 @@ verify_copy_dir_contents() {
     elif [ -f "$_VC_ENTRY" ]; then
       [ -f "$_VC_SRC_ENTRY" ] || return 1
     else
+      return 1
+    fi
+  done
+  # 2. Every entry in SOURCE must also exist in DEST (detects missing managed files)
+  for _VC_SRC_ITEM in "$_VC_SOURCE"/* "$_VC_SOURCE"/.*; do
+    [ -e "$_VC_SRC_ITEM" ] || [ -L "$_VC_SRC_ITEM" ] || continue
+    _VC_SRC_NAME="$(basename -- "$_VC_SRC_ITEM")"
+    case "$_VC_SRC_NAME" in
+      .|..|.DS_Store) continue ;;
+    esac
+    _VC_DST_ITEM="$_VC_DEST/$_VC_SRC_NAME"
+    if [ ! -e "$_VC_DST_ITEM" ] || [ -L "$_VC_DST_ITEM" ]; then
       return 1
     fi
   done
@@ -208,21 +221,46 @@ is_owned_copy_dir() {
     if [ "$(grep -c "^plugin=" "$MARKER_PATH" 2>/dev/null || printf '0')" -ne 1 ]; then
       return 1
     fi
-    if grep -q "^skill=" "$MARKER_PATH" 2>/dev/null; then
-      grep -qx "skill=$SKILL_NAME" "$MARKER_PATH" 2>/dev/null || return 1
+    # Require skill=, install-path=, and source= in v1 schema markers
+    if [ "$(grep -c "^skill=" "$MARKER_PATH" 2>/dev/null || printf '0')" -ne 1 ]; then
+      return 1
     fi
-    if grep -q "^install-path=" "$MARKER_PATH" 2>/dev/null; then
-      MARKER_INSTALL_PATH="$(sed -n 's/^install-path=//p' "$MARKER_PATH" | head -n 1)"
-      [ -n "$MARKER_INSTALL_PATH" ] || return 1
-      CANON_MARKER_INSTALL="$(canonicalize_path "$MARKER_INSTALL_PATH")" || return 1
-      [ "$CANON_MARKER_INSTALL" = "$CANON_DEST_PATH" ] || return 1
+    grep -qx "skill=$SKILL_NAME" "$MARKER_PATH" 2>/dev/null || return 1
+
+    if [ "$(grep -c "^install-path=" "$MARKER_PATH" 2>/dev/null || printf '0')" -ne 1 ]; then
+      return 1
     fi
-    if grep -q "^source=" "$MARKER_PATH" 2>/dev/null; then
-      MARKER_SOURCE_PATH="$(sed -n 's/^source=//p' "$MARKER_PATH" | head -n 1)"
-      [ -n "$MARKER_SOURCE_PATH" ] || return 1
-      CANON_MARKER_SOURCE="$(canonicalize_path "$MARKER_SOURCE_PATH")" || return 1
-      [ "$CANON_MARKER_SOURCE" = "$CANON_EXPECTED_SOURCE" ] || return 1
+    MARKER_INSTALL_PATH="$(sed -n 's/^install-path=//p' "$MARKER_PATH" | head -n 1)"
+    [ -n "$MARKER_INSTALL_PATH" ] || return 1
+    CANON_MARKER_INSTALL="$(canonicalize_path "$MARKER_INSTALL_PATH")" || return 1
+    [ "$CANON_MARKER_INSTALL" = "$CANON_DEST_PATH" ] || return 1
+
+    if [ "$(grep -c "^source=" "$MARKER_PATH" 2>/dev/null || printf '0')" -ne 1 ]; then
+      return 1
     fi
+    MARKER_SOURCE_PATH="$(sed -n 's/^source=//p' "$MARKER_PATH" | head -n 1)"
+    [ -n "$MARKER_SOURCE_PATH" ] || return 1
+    CANON_MARKER_SOURCE="$(canonicalize_path "$MARKER_SOURCE_PATH")" || return 1
+    [ "$CANON_MARKER_SOURCE" = "$CANON_EXPECTED_SOURCE" ] || return 1
+
+    if grep -q "^files=" "$MARKER_PATH" 2>/dev/null; then
+      MARKER_FILES="$(sed -n 's/^files=//p' "$MARKER_PATH" | head -n 1)"
+      [ -n "$MARKER_FILES" ] || return 1
+      OLD_IFS="$IFS"
+      IFS=','
+      for _MF_REL in $MARKER_FILES; do
+        [ -n "$_MF_REL" ] || { IFS="$OLD_IFS"; return 1; }
+        case "$_MF_REL" in
+          /*|*..*|./*) IFS="$OLD_IFS"; return 1 ;;
+        esac
+        if [ ! -f "$DEST_PATH/$_MF_REL" ] || [ -L "$DEST_PATH/$_MF_REL" ]; then
+          IFS="$OLD_IFS"
+          return 1
+        fi
+      done
+      IFS="$OLD_IFS"
+    fi
+
     if [ -d "$CANON_EXPECTED_SOURCE" ]; then
       verify_copy_dir_contents "$DEST_PATH" "$CANON_EXPECTED_SOURCE" || return 1
     else
@@ -231,7 +269,7 @@ is_owned_copy_dir() {
     return 0
   fi
 
-  if grep -qx "managed-by=install.sh" "$MARKER_PATH" 2>/dev/null && ! grep -q "^plugin=" "$MARKER_PATH" 2>/dev/null; then
+  if grep -qx "managed-by=install.sh" "$MARKER_PATH" 2>/dev/null && ! grep -q "^plugin=" "$MARKER_PATH" 2>/dev/null && ! grep -q "^schema_version=" "$MARKER_PATH" 2>/dev/null; then
     if [ -d "$CANON_EXPECTED_SOURCE" ]; then
       verify_copy_dir_contents "$DEST_PATH" "$CANON_EXPECTED_SOURCE" || return 1
     else
@@ -244,11 +282,61 @@ is_owned_copy_dir() {
 
 is_owned_manifest() {
   MANIFEST_PATH="$1"
+  EXPECTED_TARGET_DIR="${2:-$(dirname -- "$MANIFEST_PATH")}"
   [ -f "$MANIFEST_PATH" ] && [ ! -L "$MANIFEST_PATH" ] || return 1
   if [ "$(grep -c "^plugin=" "$MANIFEST_PATH" 2>/dev/null || printf '0')" -ne 1 ]; then
     return 1
   fi
-  grep -qx "plugin=$PLUGIN_ID" "$MANIFEST_PATH" 2>/dev/null
+  grep -qx "plugin=$PLUGIN_ID" "$MANIFEST_PATH" 2>/dev/null || return 1
+  if grep -q "^schema_version=" "$MANIFEST_PATH" 2>/dev/null; then
+    grep -qx "schema_version=1" "$MANIFEST_PATH" 2>/dev/null || return 1
+  fi
+  if grep -q "^install_target=" "$MANIFEST_PATH" 2>/dev/null; then
+    REC_TARGET="$(sed -n 's/^install_target=//p' "$MANIFEST_PATH" | head -n 1)"
+    [ -n "$REC_TARGET" ] || return 1
+    CANON_REC_TARGET="$(canonicalize_path "$REC_TARGET")" || return 1
+    CANON_EXP_TARGET="$(canonicalize_path "$EXPECTED_TARGET_DIR")" || return 1
+    [ "$CANON_REC_TARGET" = "$CANON_EXP_TARGET" ] || return 1
+  fi
+  while IFS= read -r _MLINE; do
+    [ -n "$_MLINE" ] || continue
+    case "$_MLINE" in
+      schema_version=*|plugin=*|managed_by=*|install_scope=*|install_target=*|install_mode=*|source_root=*)
+        ;;
+      entry\|*)
+        _M_SKILL="$(printf '%s' "$_MLINE" | cut -d'|' -f2)"
+        _M_MODE="$(printf '%s' "$_MLINE" | cut -d'|' -f3)"
+        _M_DEST="$(printf '%s' "$_MLINE" | cut -d'|' -f4)"
+        _M_SRC="$(printf '%s' "$_MLINE" | cut -d'|' -f5)"
+        is_safe_skill_name "$_M_SKILL" || return 1
+        [ "$_M_MODE" = "symlink" ] || [ "$_M_MODE" = "copy" ] || return 1
+        [ -n "$_M_DEST" ] && [ -n "$_M_SRC" ] || return 1
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+  done < "$MANIFEST_PATH"
+  return 0
+}
+
+collect_skill_rel_files() {
+  _CS_DIR="$1"
+  _CS_OUT=""
+  for _CS_ITEM in "$_CS_DIR"/*; do
+    [ -e "$_CS_ITEM" ] || continue
+    _CS_BASE="$(basename -- "$_CS_ITEM")"
+    if [ -f "$_CS_ITEM" ]; then
+      _CS_OUT="${_CS_OUT:+$_CS_OUT,}$_CS_BASE"
+    elif [ -d "$_CS_ITEM" ]; then
+      for _CS_SUB in "$_CS_ITEM"/*; do
+        [ -f "$_CS_SUB" ] || continue
+        _CS_SUB_BASE="$(basename -- "$_CS_SUB")"
+        _CS_OUT="${_CS_OUT:+$_CS_OUT,}$_CS_BASE/$_CS_SUB_BASE"
+      done
+    fi
+  done
+  printf '%s' "$_CS_OUT"
 }
 
 while [ "$#" -gt 0 ]; do
@@ -323,7 +411,7 @@ CONFLICT_COUNT=0
 ORPHAN_PLAN_ENTRIES=""
 
 if [ -e "$MANIFEST_PATH" ] || [ -L "$MANIFEST_PATH" ]; then
-  if ! is_owned_manifest "$MANIFEST_PATH"; then
+  if ! is_owned_manifest "$MANIFEST_PATH" "$CANON_TARGET"; then
     echo "Conflict: refusing to overwrite unmanaged manifest file at $MANIFEST_PATH." >&2
     CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
   fi
@@ -366,7 +454,7 @@ for SKILL_DIR in "$SKILLS_ROOT"/*; do
 done
 
 # Pass 1b: Inspect existing owned manifest for retired/orphan skill entries no longer in skills/
-if [ -f "$MANIFEST_PATH" ] && is_owned_manifest "$MANIFEST_PATH"; then
+if [ -f "$MANIFEST_PATH" ] && is_owned_manifest "$MANIFEST_PATH" "$CANON_TARGET"; then
   while IFS='|' read -r REC_KIND REC_SKILL _REC_MODE _REC_DEST _REC_SOURCE; do
     [ "$REC_KIND" = "entry" ] || continue
     [ -n "$REC_SKILL" ] || continue
@@ -375,7 +463,6 @@ if [ -f "$MANIFEST_PATH" ] && is_owned_manifest "$MANIFEST_PATH"; then
       CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
       continue
     fi
-    # Skip if still an active skill in SKILLS_ROOT
     if [ -f "$SKILLS_ROOT/$REC_SKILL/SKILL.md" ]; then
       continue
     fi
@@ -543,6 +630,7 @@ for SKILL_DIR in "$SKILLS_ROOT"/*; do
   else
     mkdir -p "$DEST"
     cp -R "$CANON_SKILL_DIR"/. "$DEST"/
+    SKILL_FILES_LIST="$(collect_skill_rel_files "$CANON_SKILL_DIR")"
     {
       printf "schema_version=1\n"
       printf "plugin=%s\n" "$PLUGIN_ID"
@@ -551,6 +639,7 @@ for SKILL_DIR in "$SKILLS_ROOT"/*; do
       printf "skill=%s\n" "$SKILL_NAME"
       printf "install-path=%s\n" "$DEST"
       printf "source=%s\n" "$CANON_SKILL_DIR"
+      printf "files=%s\n" "$SKILL_FILES_LIST"
     } > "$DEST/$MARKER_FILE"
     echo "Installed copy: $DEST"
   fi
@@ -561,7 +650,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   echo "[dry-run] Would write ownership manifest: $MANIFEST_PATH"
 else
   if [ -e "$MANIFEST_PATH" ] || [ -L "$MANIFEST_PATH" ]; then
-    if ! is_owned_manifest "$MANIFEST_PATH"; then
+    if ! is_owned_manifest "$MANIFEST_PATH" "$CANON_TARGET"; then
       rm -f "$MANIFEST_TMP"
       echo "Manifest ownership verification failed for $MANIFEST_PATH. Aborting." >&2
       exit 1
