@@ -75,50 +75,110 @@ validate_skill_name() {
 verify_dest_within_target() {
   DEST_PATH="$1"
   CANON_TARGET_DIR="$2"
-  DEST_PARENT="$(canonicalize_path "$(dirname -- "$DEST_PATH")")"
+  EXPECTED_NAME="${3:-$(basename -- "$DEST_PATH")}"
+  [ -n "$DEST_PATH" ] && [ -n "$CANON_TARGET_DIR" ] && [ -n "$EXPECTED_NAME" ] || return 1
+  DEST_PARENT="$(canonicalize_path "$(dirname -- "$DEST_PATH")")" || return 1
   [ "$DEST_PARENT" = "$CANON_TARGET_DIR" ] || return 1
-  [ "$DEST_PATH" != "/" ] || return 1
-  [ "$DEST_PATH" != "$CANON_TARGET_DIR" ] || return 1
-  [ "$DEST_PATH" != "$SCRIPT_DIR" ] || return 1
+  CANON_DEST="$(canonicalize_path "$DEST_PATH")" || return 1
+  EXPECTED_DEST="$CANON_TARGET_DIR/$EXPECTED_NAME"
+  [ "$DEST_PATH" = "$EXPECTED_DEST" ] || return 1
+  [ "$CANON_DEST" = "$EXPECTED_DEST" ] || return 1
+  [ "$CANON_DEST" != "/" ] || return 1
+  [ "$CANON_DEST" != "$CANON_TARGET_DIR" ] || return 1
+  [ "$CANON_DEST" != "$SCRIPT_DIR" ] || return 1
+  [ "$CANON_DEST" != "$SKILLS_ROOT" ] || return 1
   return 0
 }
 
 is_owned_symlink() {
   _OS_DEST="$1"
   _OS_EXPECTED="$2"
+  [ -L "$_OS_DEST" ] || return 1
   _OS_LINK="$(readlink "$_OS_DEST")" || return 1
-  if [ "$_OS_LINK" = "$_OS_EXPECTED" ]; then
-    return 0
-  fi
+  [ -n "$_OS_LINK" ] || return 1
   case "$_OS_LINK" in
     /*) _OS_RESOLVED="$_OS_LINK" ;;
     *) _OS_RESOLVED="$(dirname -- "$_OS_DEST")/$_OS_LINK" ;;
   esac
-  _OS_CANON_ACTUAL="$(canonicalize_path "$_OS_RESOLVED")"
-  _OS_CANON_EXPECTED="$(canonicalize_path "$_OS_EXPECTED")"
+  _OS_CANON_ACTUAL="$(canonicalize_path "$_OS_RESOLVED")" || return 1
+  _OS_CANON_EXPECTED="$(canonicalize_path "$_OS_EXPECTED")" || return 1
+  _OS_CANON_SKILLS_ROOT="$(canonicalize_path "$SKILLS_ROOT")" || return 1
+  case "$_OS_CANON_ACTUAL" in
+    "$_OS_CANON_SKILLS_ROOT"/*) ;;
+    *) return 1 ;;
+  esac
   [ "$_OS_CANON_ACTUAL" = "$_OS_CANON_EXPECTED" ]
+}
+
+verify_copy_dir_contents() {
+  _VC_DEST="$1"
+  _VC_SOURCE="$2"
+  for _VC_ENTRY in "$_VC_DEST"/* "$_VC_DEST"/.*; do
+    [ -e "$_VC_ENTRY" ] || [ -L "$_VC_ENTRY" ] || continue
+    _VC_NAME="$(basename -- "$_VC_ENTRY")"
+    case "$_VC_NAME" in
+      .|..|"$MARKER_FILE") continue ;;
+    esac
+    if [ -L "$_VC_ENTRY" ]; then
+      return 1
+    fi
+    _VC_SRC_ENTRY="$_VC_SOURCE/$_VC_NAME"
+    if [ ! -e "$_VC_SRC_ENTRY" ] || [ -L "$_VC_SRC_ENTRY" ]; then
+      return 1
+    fi
+    if [ -d "$_VC_ENTRY" ]; then
+      [ -d "$_VC_SRC_ENTRY" ] || return 1
+      verify_copy_dir_contents "$_VC_ENTRY" "$_VC_SRC_ENTRY" || return 1
+    elif [ -f "$_VC_ENTRY" ]; then
+      [ -f "$_VC_SRC_ENTRY" ] || return 1
+    else
+      return 1
+    fi
+  done
+  return 0
 }
 
 is_owned_copy_dir() {
   DEST_PATH="$1"
   SKILL_NAME="$2"
   CANON_DEST_PATH="$3"
+  EXPECTED_SOURCE_DIR="${4:-$SKILLS_ROOT/$SKILL_NAME}"
   [ -d "$DEST_PATH" ] && [ ! -L "$DEST_PATH" ] || return 1
+  CANON_ACTUAL_DEST="$(canonicalize_path "$DEST_PATH")" || return 1
+  [ "$CANON_ACTUAL_DEST" = "$CANON_DEST_PATH" ] || return 1
   MARKER_PATH="$DEST_PATH/$MARKER_FILE"
   [ -f "$MARKER_PATH" ] && [ ! -L "$MARKER_PATH" ] || return 1
+  SKILL_MD_PATH="$DEST_PATH/SKILL.md"
+  [ -f "$SKILL_MD_PATH" ] && [ ! -L "$SKILL_MD_PATH" ] || return 1
+  grep -Eq "^name:[[:space:]]*$SKILL_NAME[[:space:]]*$" "$SKILL_MD_PATH" 2>/dev/null || return 1
+
+  CANON_EXPECTED_SOURCE="$(canonicalize_path "$EXPECTED_SOURCE_DIR")" || return 1
+
   if grep -qx "plugin=$PLUGIN_ID" "$MARKER_PATH" 2>/dev/null; then
+    if [ "$(grep -c "^plugin=" "$MARKER_PATH" 2>/dev/null || printf '0')" -ne 1 ]; then
+      return 1
+    fi
     if grep -q "^skill=" "$MARKER_PATH" 2>/dev/null; then
       grep -qx "skill=$SKILL_NAME" "$MARKER_PATH" 2>/dev/null || return 1
     fi
     if grep -q "^install-path=" "$MARKER_PATH" 2>/dev/null; then
-      grep -qx "install-path=$CANON_DEST_PATH" "$MARKER_PATH" 2>/dev/null || return 1
+      MARKER_INSTALL_PATH="$(sed -n 's/^install-path=//p' "$MARKER_PATH" | head -n 1)"
+      [ -n "$MARKER_INSTALL_PATH" ] || return 1
+      CANON_MARKER_INSTALL="$(canonicalize_path "$MARKER_INSTALL_PATH")" || return 1
+      [ "$CANON_MARKER_INSTALL" = "$CANON_DEST_PATH" ] || return 1
     fi
+    if grep -q "^source=" "$MARKER_PATH" 2>/dev/null; then
+      MARKER_SOURCE_PATH="$(sed -n 's/^source=//p' "$MARKER_PATH" | head -n 1)"
+      [ -n "$MARKER_SOURCE_PATH" ] || return 1
+      CANON_MARKER_SOURCE="$(canonicalize_path "$MARKER_SOURCE_PATH")" || return 1
+      [ "$CANON_MARKER_SOURCE" = "$CANON_EXPECTED_SOURCE" ] || return 1
+    fi
+    verify_copy_dir_contents "$DEST_PATH" "$CANON_EXPECTED_SOURCE" || return 1
     return 0
   fi
+
   if grep -qx "managed-by=install.sh" "$MARKER_PATH" 2>/dev/null && ! grep -q "^plugin=" "$MARKER_PATH" 2>/dev/null; then
-    if [ -f "$DEST_PATH/SKILL.md" ] && ! grep -qx "name: $SKILL_NAME" "$DEST_PATH/SKILL.md" 2>/dev/null; then
-      return 1
-    fi
+    verify_copy_dir_contents "$DEST_PATH" "$CANON_EXPECTED_SOURCE" || return 1
     return 0
   fi
   return 1
@@ -127,6 +187,9 @@ is_owned_copy_dir() {
 is_owned_manifest() {
   MANIFEST_PATH="$1"
   [ -f "$MANIFEST_PATH" ] && [ ! -L "$MANIFEST_PATH" ] || return 1
+  if [ "$(grep -c "^plugin=" "$MANIFEST_PATH" 2>/dev/null || printf '0')" -ne 1 ]; then
+    return 1
+  fi
   grep -qx "plugin=$PLUGIN_ID" "$MANIFEST_PATH" 2>/dev/null
 }
 
@@ -181,6 +244,7 @@ fi
 
 MANIFEST_PATH="$CANON_TARGET/$MANIFEST_FILE"
 CONFLICT_COUNT=0
+PLAN_ENTRIES=""
 
 if [ -e "$MANIFEST_PATH" ] || [ -L "$MANIFEST_PATH" ]; then
   if ! is_owned_manifest "$MANIFEST_PATH"; then
@@ -189,34 +253,47 @@ if [ -e "$MANIFEST_PATH" ] || [ -L "$MANIFEST_PATH" ]; then
   fi
 fi
 
-# Pass 1: Pre-flight ownership and path containment verification (zero deletions)
+# Pass 1: Pre-flight candidate collection, install-type classification, ownership & path verification (zero deletions)
 for SKILL_DIR in "$SKILLS_ROOT"/*; do
   [ -d "$SKILL_DIR" ] || continue
   [ -f "$SKILL_DIR/SKILL.md" ] || continue
 
   SKILL_NAME="$(basename "$SKILL_DIR")"
   validate_skill_name "$SKILL_NAME"
+  CANON_SKILL_DIR="$(canonicalize_path "$SKILL_DIR")"
   DEST="$CANON_TARGET/$SKILL_NAME"
 
   if [ ! -e "$DEST" ] && [ ! -L "$DEST" ]; then
     continue
   fi
 
-  if ! verify_dest_within_target "$DEST" "$CANON_TARGET"; then
+  if ! verify_dest_within_target "$DEST" "$CANON_TARGET" "$SKILL_NAME"; then
     echo "Conflict: destination path escapes target directory ($DEST)." >&2
     CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
     continue
   fi
 
   if [ -L "$DEST" ]; then
-    if ! is_owned_symlink "$DEST" "$SKILL_DIR"; then
+    if ! is_owned_symlink "$DEST" "$CANON_SKILL_DIR"; then
       LINK_TARGET="$(readlink "$DEST" 2>/dev/null || printf '<unreadable>')"
       echo "Conflict: refusing to remove unmanaged symlink at $DEST (points to: $LINK_TARGET)." >&2
       CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+      continue
     fi
-  elif ! is_owned_copy_dir "$DEST" "$SKILL_NAME" "$DEST"; then
-    echo "Conflict: refusing to remove unmanaged path at $DEST (missing valid $MARKER_FILE for $PLUGIN_ID)." >&2
+    PLAN_ENTRIES="${PLAN_ENTRIES}symlink|${SKILL_NAME}|${DEST}|${CANON_SKILL_DIR}
+"
+  elif [ -d "$DEST" ]; then
+    if ! is_owned_copy_dir "$DEST" "$SKILL_NAME" "$DEST" "$CANON_SKILL_DIR"; then
+      echo "Conflict: refusing to remove unmanaged path at $DEST (missing valid $MARKER_FILE for $PLUGIN_ID or unexpected user files present)." >&2
+      CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+      continue
+    fi
+    PLAN_ENTRIES="${PLAN_ENTRIES}copy|${SKILL_NAME}|${DEST}|${CANON_SKILL_DIR}
+"
+  else
+    echo "Conflict: refusing to remove unmanaged non-directory file at $DEST." >&2
     CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+    continue
   fi
 done
 
@@ -225,41 +302,68 @@ if [ "$CONFLICT_COUNT" -gt 0 ]; then
   exit 1
 fi
 
-# Pass 2: Preview or remove verified owned paths (re-verify right before deletion)
-for SKILL_DIR in "$SKILLS_ROOT"/*; do
-  [ -d "$SKILL_DIR" ] || continue
-  [ -f "$SKILL_DIR/SKILL.md" ] || continue
+# Pass 2: Preview or remove verified owned paths (re-verify independently right before deletion)
+if [ -n "$PLAN_ENTRIES" ]; then
+  while IFS='|' read -r INSTALL_TYPE SKILL_NAME DEST CANON_SKILL_DIR; do
+    [ -n "$INSTALL_TYPE" ] || continue
 
-  SKILL_NAME="$(basename "$SKILL_DIR")"
-  DEST="$CANON_TARGET/$SKILL_NAME"
-
-  if [ ! -e "$DEST" ] && [ ! -L "$DEST" ]; then
-    continue
-  fi
-
-  if [ -L "$DEST" ]; then
-    if [ "$DRY_RUN" -eq 1 ]; then
-      echo "[dry-run] Would remove owned symlink: $DEST"
-    else
-      verify_dest_within_target "$DEST" "$CANON_TARGET" && is_owned_symlink "$DEST" "$SKILL_DIR"
-      rm "$DEST"
-      echo "Removed symlink: $DEST"
+    if [ ! -e "$DEST" ] && [ ! -L "$DEST" ]; then
+      continue
     fi
-  else
-    if [ "$DRY_RUN" -eq 1 ]; then
-      echo "[dry-run] Would remove owned directory: $DEST"
-    else
-      verify_dest_within_target "$DEST" "$CANON_TARGET" && is_owned_copy_dir "$DEST" "$SKILL_NAME" "$DEST"
-      rm -rf "$DEST"
-      echo "Removed managed directory: $DEST"
-    fi
-  fi
-done
 
-if [ -f "$MANIFEST_PATH" ] && is_owned_manifest "$MANIFEST_PATH"; then
+    if [ "$INSTALL_TYPE" = "symlink" ]; then
+      if [ "$DRY_RUN" -eq 1 ]; then
+        echo "[dry-run] Would remove owned symlink: $DEST"
+      else
+        if ! verify_dest_within_target "$DEST" "$CANON_TARGET" "$SKILL_NAME"; then
+          echo "Destination path verification failed for $DEST. Aborting." >&2
+          exit 1
+        fi
+        if ! is_owned_symlink "$DEST" "$CANON_SKILL_DIR"; then
+          echo "Symlink ownership verification failed for $DEST. Aborting." >&2
+          exit 1
+        fi
+        rm "$DEST"
+        echo "Removed symlink: $DEST"
+      fi
+    elif [ "$INSTALL_TYPE" = "copy" ]; then
+      if [ "$DRY_RUN" -eq 1 ]; then
+        echo "[dry-run] Would remove owned directory: $DEST"
+      else
+        if ! verify_dest_within_target "$DEST" "$CANON_TARGET" "$SKILL_NAME"; then
+          echo "Destination path verification failed for $DEST. Aborting." >&2
+          exit 1
+        fi
+        if ! is_owned_copy_dir "$DEST" "$SKILL_NAME" "$DEST" "$CANON_SKILL_DIR"; then
+          echo "Copy directory ownership verification failed for $DEST. Aborting." >&2
+          exit 1
+        fi
+        rm -rf "$DEST"
+        echo "Removed managed directory: $DEST"
+      fi
+    else
+      echo "Unexpected install type '$INSTALL_TYPE' for $DEST. Aborting." >&2
+      exit 1
+    fi
+  done <<EOF
+$PLAN_ENTRIES
+EOF
+fi
+
+if [ -e "$MANIFEST_PATH" ] || [ -L "$MANIFEST_PATH" ]; then
   if [ "$DRY_RUN" -eq 1 ]; then
-    echo "[dry-run] Would remove ownership manifest: $MANIFEST_PATH"
+    if is_owned_manifest "$MANIFEST_PATH"; then
+      echo "[dry-run] Would remove ownership manifest: $MANIFEST_PATH"
+    fi
   else
+    if ! verify_dest_within_target "$MANIFEST_PATH" "$CANON_TARGET" "$MANIFEST_FILE"; then
+      echo "Manifest path verification failed for $MANIFEST_PATH. Aborting." >&2
+      exit 1
+    fi
+    if ! is_owned_manifest "$MANIFEST_PATH"; then
+      echo "Manifest ownership verification failed for $MANIFEST_PATH. Aborting." >&2
+      exit 1
+    fi
     rm "$MANIFEST_PATH"
     echo "Removed ownership manifest: $MANIFEST_PATH"
   fi
