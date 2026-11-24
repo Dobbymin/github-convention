@@ -141,8 +141,10 @@ Git과 GitHub 상태를 바꾸는 모든 작업의 최종 권한은 **Orchestrat
 - **6상태 CI 분류, PR 충돌 자동 해결 및 `merge_method` 정책**:
   - 보호된 기본 브랜치에 직접 Push할 수 없습니다.
   - PR에 충돌(`CONFLICTING` / `DIRTY`)이 발생하면 10단계 충돌 해결 절차(대상 base 브랜치 확인 → 최신 원격 base fetch → 변경 비교 → 원인 분석 → 충돌 해결 → 기존 변경·Issue 요구사항 보존 확인 → 테스트·품질 게이트 실행 → Commit & Push → 충돌 해소 재확인 → 새 커밋 기준 CI 및 자동 머지 조건 재평가)를 따릅니다. `git reset --hard`나 무조건적인 `git checkout --ours`/`--theirs`는 금지하며, 복잡한 설계 충돌은 사용자에게 확인합니다.
-  - CI 상태는 `PASS`(모두 통과 → 머지 허용), `FAIL`(실패 → 머지 차단), `PENDING`(실행 중 → 항상 대기, `--auto` 우회 금지), `NO_TESTS`(테스트 없음 → 머지 허용), `UNAVAILABLE`(Actions 사용량/과금 한도 초과 또는 CI 비활성화로 실행 불가 → 로컬 검증 후 머지 허용), `UNKNOWN`(PR 또는 CI 상태 조회 불가 → 머지 차단 및 원인 분석)으로 구분합니다.
-  - PR이 `OPEN` 상태이고 Draft가 아니며, 충돌과 미해결 Blocker가 없고 `PASS` / `NO_TESTS` / `UNAVAILABLE`이면 `.github-convention/config.yaml`의 `github.merge_method`(`squash` | `merge` | `rebase`, 기본값 `squash`)에 따라 `gh pr merge <PR> --<method> --delete-branch`를 실행합니다(`github.auto_merge_on_ci_pass: false` 설정 시 수동 머지 유지). `guard-bash.mjs`가 `FAIL`, `PENDING`, `UNKNOWN`, `CLOSED`, `MERGED`, `Draft`, 충돌 상태, `--admin`, `gh api` 우회 머지를 차단합니다.
+  - CI 상태는 `FAIL > PENDING > UNKNOWN > UNAVAILABLE > PASS > NO_TESTS` 우선순위로 구분합니다(`PASS + UNAVAILABLE`은 `UNAVAILABLE`, `FAIL + UNAVAILABLE`은 `FAIL`, `PENDING + UNAVAILABLE`은 `PENDING`으로 분류).
+  - Actions Job 조회 시 Job 응답의 `check_run_url`에서 실제 Check Run ID를 추출해 조회하며, Check Run ID 누락·인증 실패(401/403)·404·네트워크 오류는 `UNAVAILABLE`이 아닌 조회 오류(`UNKNOWN`/`FAIL`)로 처리합니다.
+  - 충돌 평가 시 CI 상태가 누락(`null`/`undefined`)되거나 이전 커밋 SHA의 결과만 남아 있으면 `UNKNOWN`으로 차단합니다.
+  - PR이 `OPEN` 상태이고 Draft가 아니며, 충돌과 미해결 Blocker가 없고 `PASS` / `NO_TESTS` / `UNAVAILABLE`이면 우선순위(`저장소 허용 방식 > 명시적 프로젝트 설정 github.merge_method > 명시적 CLI 플래그 > 기본값 squash`)에 따라 `gh pr merge <PR> --<method> --delete-branch`를 실행합니다(`github.auto_merge_on_ci_pass: false` 설정 시 수동 머지 유지). `guard-bash.mjs`가 `FAIL`, `PENDING`, `UNKNOWN`, `CLOSED`, `MERGED`, `Draft`, 충돌 상태, `--admin`, `gh api` 우회 머지를 차단합니다.
 - **언어 정책**: Issue, PR, 커밋, Worker Report, PR 리뷰 보고서 모두 사용자의 요청 언어를 따릅니다(한국어 요청 시 한국어, 영어 요청 시 영어, 별도 지정 시 해당 언어 우선). 기술 식별자, 코드, Git 명령어, Conventional Commit 접두사, 상태 토큰(`READY_FOR_PR`, `BLOCKED`, `PASS`, `FAIL`)은 원문을 유지합니다.
 
 ---
