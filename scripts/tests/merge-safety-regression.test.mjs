@@ -235,7 +235,7 @@ test("Defect A (Unit/Mock): distinguishes Check Run ID from Job ID, refuses gues
   assert.equal(resA7.status, "lookup_error");
   assert.equal(resA7.errorKind, "network");
 
-  // Confirm classifyCiStatus classifies auth/network/404 lookup errors on FAILURE checks as FAIL, NOT UNAVAILABLE
+  // Confirm classifyCiStatus classifies auth/network/404 lookup errors on FAILURE checks as UNKNOWN (preserving lookupErrors), NOT FAIL or UNAVAILABLE
   const prAuthErr = classifyCiStatus(
     {
       ok: true,
@@ -258,8 +258,11 @@ test("Defect A (Unit/Mock): distinguishes Check Run ID from Job ID, refuses gues
       }),
     },
   );
-  assert.equal(prAuthErr.status, "FAIL");
+  assert.equal(prAuthErr.status, "UNKNOWN");
+  assert.equal(prAuthErr.failing.length, 0);
+  assert.deepEqual(prAuthErr.unknown, ["verify"]);
   assert.equal(prAuthErr.lookupErrors.length, 1);
+  assert.equal(prAuthErr.lookupErrors[0].errorKind, "auth");
 });
 
 // =============================================================================
@@ -566,6 +569,10 @@ if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
     printf '{"isDraft":false,"state":"OPEN","mergeable":"MERGEABLE","mergeStateStatus":"BLOCKED","headRefOid":"sha123","statusCheckRollup":[{"name":"CI/verify","status":"IN_PROGRESS","conclusion":""}]}\n'
     exit 0
   fi
+  if [ "$SCENARIO" = "real_fail_plus_auth_err" ]; then
+    printf '{"isDraft":false,"state":"OPEN","mergeable":"MERGEABLE","mergeStateStatus":"UNSTABLE","headRefOid":"sha123","statusCheckRollup":[{"name":"CI/unit","status":"COMPLETED","conclusion":"FAILURE","detailsUrl":"https://github.com/owner/repo/actions/runs/777/job/2222"},{"name":"CI/verify","status":"COMPLETED","conclusion":"FAILURE","detailsUrl":"https://github.com/owner/repo/actions/runs/777/job/1111"}]}\n'
+    exit 0
+  fi
   printf '{"isDraft":false,"state":"OPEN","mergeable":"MERGEABLE","mergeStateStatus":"UNSTABLE","headRefOid":"sha123","statusCheckRollup":[{"name":"CI/verify","status":"COMPLETED","conclusion":"FAILURE","detailsUrl":"https://github.com/owner/repo/actions/runs/777/job/1111"}]}\n'
   exit 0
 fi
@@ -577,11 +584,23 @@ if [ "$1" = "api" ]; then
     esac
   done
   if [ "$ENDPOINT" = "repos/owner/repo/actions/jobs/1111" ]; then
-    if [ "$SCENARIO" = "auth_401" ]; then
+    if [ "$SCENARIO" = "auth_401" ] || [ "$SCENARIO" = "real_fail_plus_auth_err" ]; then
       printf 'HTTP/2.0 401 Unauthorized\r\n\r\n{"message":"Bad credentials"}\n'
       exit 1
     fi
+    if [ "$SCENARIO" = "not_found_404" ]; then
+      printf 'HTTP/2.0 404 Not Found\r\n\r\n{"message":"Not Found"}\n'
+      exit 1
+    fi
+    if [ "$SCENARIO" = "network_err" ]; then
+      echo "dial tcp: lookup api.github.com: no such host" >&2
+      exit 1
+    fi
     printf 'HTTP/2.0 200 OK\r\n\r\n{"id":1111,"check_run_url":"https://api.github.com/repos/owner/repo/check-runs/8888","steps":[]}\n'
+    exit 0
+  fi
+  if [ "$ENDPOINT" = "repos/owner/repo/actions/jobs/2222" ]; then
+    printf 'HTTP/2.0 200 OK\r\n\r\n{"id":2222,"check_run_url":"https://api.github.com/repos/owner/repo/check-runs/9999","steps":[{"name":"test","conclusion":"failure"}]}\n'
     exit 0
   fi
   if [ "$ENDPOINT" = "repos/owner/repo/check-runs/8888/annotations" ]; then
@@ -619,10 +638,34 @@ exit 1
       assert.equal(pendingAutoRes.status, 0);
       assert.equal(JSON.parse(pendingAutoRes.stdout).hookSpecificOutput.permissionDecision, "deny");
 
-      // 3. Auth 401 on gh api -> deny (NOT UNAVAILABLE)
+      // 3. Auth 401 on gh api -> deny as UNKNOWN (NOT FAIL or UNAVAILABLE)
       const authRes = runHook("gh pr merge 42 --squash", "auth_401");
       assert.equal(authRes.status, 0);
-      assert.equal(JSON.parse(authRes.stdout).hookSpecificOutput.permissionDecision, "deny");
+      const authOut = JSON.parse(authRes.stdout).hookSpecificOutput;
+      assert.equal(authOut.permissionDecision, "deny");
+      assert.match(authOut.permissionDecisionReason, /UNKNOWN/);
+      assert.doesNotMatch(authOut.permissionDecisionReason, /failing CI check\(s\)/);
+
+      // 3b. 404 on gh api -> deny as UNKNOWN
+      const notFoundRes = runHook("gh pr merge 42 --squash", "not_found_404");
+      assert.equal(notFoundRes.status, 0);
+      const notFoundOut = JSON.parse(notFoundRes.stdout).hookSpecificOutput;
+      assert.equal(notFoundOut.permissionDecision, "deny");
+      assert.match(notFoundOut.permissionDecisionReason, /UNKNOWN/);
+
+      // 3c. Network error on gh api -> deny as UNKNOWN
+      const netRes = runHook("gh pr merge 42 --squash", "network_err");
+      assert.equal(netRes.status, 0);
+      const netOut = JSON.parse(netRes.stdout).hookSpecificOutput;
+      assert.equal(netOut.permissionDecision, "deny");
+      assert.match(netOut.permissionDecisionReason, /UNKNOWN/);
+
+      // 3d. Confirmed real FAIL on Check 1 + 401 lookup error on Check 2 -> deny as FAIL
+      const realFailRes = runHook("gh pr merge 42 --squash", "real_fail_plus_auth_err");
+      assert.equal(realFailRes.status, 0);
+      const realFailOut = JSON.parse(realFailRes.stdout).hookSpecificOutput;
+      assert.equal(realFailOut.permissionDecision, "deny");
+      assert.match(realFailOut.permissionDecisionReason, /failing CI check\(s\): CI\/unit/);
 
       // 4. statusCheckRollup: null -> UNKNOWN -> deny (NOT NO_TESTS)
       const nullRollupRes = runHook("gh pr merge 42 --squash", "rollup_null");
@@ -638,3 +681,237 @@ exit 1
     }
   },
 );
+
+
+// =============================================================================
+// 5. Unit / Mock Tests — Defect F: Separate CI Lookup Failures from Real Test Failures
+// =============================================================================
+
+test("Defect F (Unit/Mock): separates CI lookup failures (UNKNOWN) from confirmed test failures (FAIL) and enforces aggregation priority", () => {
+  const openPrBase = { ok: true, prQueryOk: true, ciQueryOk: true, isDraft: false, state: "OPEN", mergeable: "MERGEABLE" };
+  const passCheck = { name: "CI/lint", status: "COMPLETED", conclusion: "SUCCESS" };
+  const pendingCheck = { name: "CI/e2e", status: "IN_PROGRESS", conclusion: "" };
+  const confirmedFailCheck = { name: "CI/unit", status: "COMPLETED", conclusion: "FAILURE", steps: [{ name: "test", conclusion: "failure" }] };
+  const failureLookupTarget = {
+    name: "CI/verify",
+    status: "COMPLETED",
+    conclusion: "FAILURE",
+    detailsUrl: "https://github.com/owner/repo/actions/runs/555/job/1001",
+  };
+  const quotaCheck = {
+    name: "CI/quota",
+    status: "COMPLETED",
+    conclusion: "FAILURE",
+    detailsUrl: "https://github.com/owner/repo/actions/runs/555/job/2001",
+  };
+  const disabledCheck = {
+    name: "CI/disabled",
+    status: "COMPLETED",
+    conclusion: "FAILURE",
+    detailsUrl: "https://github.com/owner/repo/actions/runs/555/job/2002",
+  };
+
+  // 1. FAILURE + Actions Job lookup auth error (401 & non-billing 403) -> UNKNOWN + lookupErrors preserved + blocked
+  for (const statusCode of [401, 403]) {
+    const res = classifyCiStatus(
+      { ...openPrBase, checks: [failureLookupTarget] },
+      {
+        ghApi: () => ({
+          ok: false,
+          statusCode,
+          body: JSON.stringify({ message: "Bad credentials" }),
+          stderr: `HTTP ${statusCode}`,
+          errorKind: "auth",
+        }),
+      },
+    );
+    assert.equal(res.status, "UNKNOWN");
+    assert.equal(res.failing.length, 0);
+    assert.deepEqual(res.unknown, ["CI/verify"]);
+    assert.equal(res.lookupErrors.length, 1);
+    assert.equal(res.lookupErrors[0].errorKind, "auth");
+
+    const mergeRes = evaluateBashCommand("gh pr merge 42 --squash", {
+      prState: { ...openPrBase, checks: [failureLookupTarget] },
+      ghApi: () => ({
+        ok: false,
+        statusCode,
+        body: JSON.stringify({ message: "Bad credentials" }),
+        stderr: `HTTP ${statusCode}`,
+        errorKind: "auth",
+      }),
+    });
+    assert.equal(mergeRes.decision, "deny");
+    assert.equal(mergeRes.ciStatus, "UNKNOWN");
+  }
+
+  // 2. FAILURE + network error & timeout -> UNKNOWN + lookupErrors preserved
+  for (const [errorKind, stderr] of [
+    ["network", "dial tcp: lookup api.github.com: no such host"],
+    ["timeout", "request timed out (ETIMEDOUT)"],
+  ]) {
+    const res = classifyCiStatus(
+      { ...openPrBase, checks: [failureLookupTarget] },
+      { ghApi: () => ({ ok: false, statusCode: null, body: "", stderr, errorKind }) },
+    );
+    assert.equal(res.status, "UNKNOWN");
+    assert.equal(res.failing.length, 0);
+    assert.equal(res.lookupErrors.length, 1);
+    assert.equal(res.lookupErrors[0].errorKind, errorKind);
+  }
+
+  // 3. FAILURE + general 404 (Job 404 & Check Run annotations 404) -> UNKNOWN + lookupErrors preserved
+  const job404 = classifyCiStatus(
+    { ...openPrBase, checks: [failureLookupTarget] },
+    { ghApi: () => ({ ok: false, statusCode: 404, body: '{"message":"Not Found"}', stderr: "HTTP 404", errorKind: "not_found" }) },
+  );
+  assert.equal(job404.status, "UNKNOWN");
+  assert.equal(job404.lookupErrors[0].errorKind, "not_found");
+
+  const ann404 = classifyCiStatus(
+    { ...openPrBase, checks: [failureLookupTarget] },
+    {
+      ghApi: (endpoint) => {
+        if (endpoint.includes("/actions/jobs/")) {
+          return {
+            ok: true,
+            statusCode: 200,
+            body: JSON.stringify({ id: 1001, check_run_url: "https://api.github.com/repos/owner/repo/check-runs/9002", steps: [] }),
+            stderr: "",
+            errorKind: null,
+          };
+        }
+        return { ok: false, statusCode: 404, body: '{"message":"Not Found"}', stderr: "HTTP 404", errorKind: "not_found" };
+      },
+    },
+  );
+  assert.equal(ann404.status, "UNKNOWN");
+  assert.equal(ann404.lookupErrors[0].errorKind, "not_found");
+
+  // 4. Malformed Job ID / Check Run ID / missing check_run_url / non-array annotations -> UNKNOWN + lookupErrors preserved
+  const malformedCases = [
+    {
+      check: { name: "c1", status: "COMPLETED", conclusion: "FAILURE", detailsUrl: "https://github.com/owner/repo/actions/runs/555/job/abc" },
+      ghApi: () => { throw new Error("should not call ghApi on malformed job url"); },
+      expectedKind: "invalid_job_id",
+    },
+    {
+      check: { name: "c2", status: "COMPLETED", conclusion: "FAILURE", checkRunId: "not-a-number", repoSlug: "owner/repo" },
+      ghApi: () => { throw new Error("should not call ghApi on malformed checkRunId"); },
+      expectedKind: "invalid_check_run_id",
+    },
+    {
+      check: { name: "c3", status: "COMPLETED", conclusion: "FAILURE", check_run_url: "https://example.com/bad" },
+      ghApi: () => { throw new Error("should not call ghApi on malformed check_run_url"); },
+      expectedKind: "invalid_check_run_id",
+    },
+    {
+      check: failureLookupTarget,
+      ghApi: () => ({ ok: true, statusCode: 200, body: JSON.stringify({ id: 1001, steps: [] }), stderr: "", errorKind: null }),
+      expectedKind: "missing_check_run_id",
+    },
+    {
+      check: failureLookupTarget,
+      ghApi: (endpoint) =>
+        endpoint.includes("/actions/jobs/")
+          ? { ok: true, statusCode: 200, body: JSON.stringify({ id: 1001, check_run_url: "https://api.github.com/repos/owner/repo/check-runs/9002", steps: [] }), stderr: "", errorKind: null }
+          : { ok: true, statusCode: 200, body: JSON.stringify({ message: "not-an-array" }), stderr: "", errorKind: null },
+      expectedKind: "invalid_response",
+    },
+  ];
+  for (const tc of malformedCases) {
+    const res = classifyCiStatus({ ...openPrBase, checks: [tc.check] }, { ghApi: tc.ghApi });
+    assert.equal(res.status, "UNKNOWN");
+    assert.equal(res.lookupErrors.length, 1);
+    assert.equal(res.lookupErrors[0].errorKind, tc.expectedKind);
+  }
+
+  // 5. FAILURE + confirmed quota/billing limit -> UNAVAILABLE -> merge allowed
+  const quotaApi = (endpoint) => {
+    if (endpoint === "repos/owner/repo/actions/jobs/2001") {
+      return { ok: true, statusCode: 200, body: JSON.stringify({ id: 2001, check_run_url: "https://api.github.com/repos/owner/repo/check-runs/9101", steps: [] }), stderr: "", errorKind: null };
+    }
+    return {
+      ok: true,
+      statusCode: 200,
+      body: JSON.stringify([{ message: "The job was not started because recent account payments have failed or your spending limit needs to be increased." }]),
+      stderr: "",
+      errorKind: null,
+    };
+  };
+  assert.equal(classifyCiStatus({ ...openPrBase, checks: [quotaCheck] }, { ghApi: quotaApi }).status, "UNAVAILABLE");
+  assert.equal(evaluateBashCommand("gh pr merge 42 --squash", { prState: { ...openPrBase, checks: [quotaCheck] }, ghApi: quotaApi }).decision, "allow");
+
+  // 6. FAILURE + confirmed Actions disabled -> UNAVAILABLE -> merge allowed
+  const disabledApi = () => ({
+    ok: false,
+    statusCode: 403,
+    body: JSON.stringify({ message: "GitHub Actions has been disabled for this repository." }),
+    stderr: "HTTP 403",
+    errorKind: "api_error",
+  });
+  assert.equal(classifyCiStatus({ ...openPrBase, checks: [disabledCheck] }, { ghApi: disabledApi }).status, "UNAVAILABLE");
+  assert.equal(evaluateBashCommand("gh pr merge 42 --squash", { prState: { ...openPrBase, checks: [disabledCheck] }, ghApi: disabledApi }).decision, "allow");
+
+  // 7. Real FAILURE confirmed on Check 1 + lookup error on Check 2 -> FAIL (and lookupErrors preserved)
+  const failPlusLookupErr = classifyCiStatus(
+    { ...openPrBase, checks: [confirmedFailCheck, failureLookupTarget] },
+    { ghApi: () => ({ ok: false, statusCode: 401, body: "Bad credentials", stderr: "HTTP 401", errorKind: "auth" }) },
+  );
+  assert.equal(failPlusLookupErr.status, "FAIL");
+  assert.deepEqual(failPlusLookupErr.failing, ["CI/unit"]);
+  assert.equal(failPlusLookupErr.lookupErrors.length, 1);
+  const failPlusLookupMerge = evaluateBashCommand("gh pr merge 42 --squash", {
+    prState: { ...openPrBase, checks: [confirmedFailCheck, failureLookupTarget] },
+    ghApi: () => ({ ok: false, statusCode: 401, body: "Bad credentials", stderr: "HTTP 401", errorKind: "auth" }),
+  });
+  assert.equal(failPlusLookupMerge.decision, "deny");
+  assert.equal(failPlusLookupMerge.ciStatus, "FAIL");
+
+  // 8. PASS + UNKNOWN -> UNKNOWN -> block
+  const passPlusUnknown = classifyCiStatus(
+    { ...openPrBase, checks: [passCheck, failureLookupTarget] },
+    { ghApi: () => ({ ok: false, statusCode: 404, body: "Not Found", stderr: "HTTP 404", errorKind: "not_found" }) },
+  );
+  assert.equal(passPlusUnknown.status, "UNKNOWN");
+
+  // 9. PASS + UNAVAILABLE -> UNAVAILABLE -> allow
+  const passPlusUnavail = classifyCiStatus({ ...openPrBase, checks: [passCheck, quotaCheck] }, { ghApi: quotaApi });
+  assert.equal(passPlusUnavail.status, "UNAVAILABLE");
+
+  // 10. PENDING + UNKNOWN -> PENDING -> block (even with --auto)
+  const pendingPlusUnknown = classifyCiStatus(
+    { ...openPrBase, checks: [pendingCheck, failureLookupTarget] },
+    { ghApi: () => ({ ok: false, statusCode: 401, body: "Bad credentials", stderr: "HTTP 401", errorKind: "auth" }) },
+  );
+  assert.equal(pendingPlusUnknown.status, "PENDING");
+  assert.equal(pendingPlusUnknown.lookupErrors.length, 1);
+  const pendingAutoDeny = evaluateBashCommand("gh pr merge 42 --auto --squash", {
+    prState: { ...openPrBase, checks: [pendingCheck, failureLookupTarget] },
+    ghApi: () => ({ ok: false, statusCode: 401, body: "Bad credentials", stderr: "HTTP 401", errorKind: "auth" }),
+  });
+  assert.equal(pendingAutoDeny.decision, "deny");
+  assert.equal(pendingAutoDeny.ciStatus, "PENDING");
+
+  // 11. PENDING + UNAVAILABLE -> PENDING -> block (even with --auto)
+  assert.equal(classifyCiStatus({ ...openPrBase, checks: [pendingCheck, quotaCheck] }, { ghApi: quotaApi }).status, "PENDING");
+
+  // 12. FAIL + PENDING -> FAIL -> block
+  assert.equal(classifyCiStatus({ ...openPrBase, checks: [confirmedFailCheck, pendingCheck] }).status, "FAIL");
+
+  // 13. All checks pass -> PASS -> allow
+  assert.equal(classifyCiStatus({ ...openPrBase, checks: [passCheck] }).status, "PASS");
+  assert.equal(evaluateBashCommand("gh pr merge 42 --squash", { prState: { ...openPrBase, checks: [passCheck] } }).decision, "allow");
+
+  // 14. No checks configured -> NO_TESTS -> allow
+  assert.equal(classifyCiStatus({ ...openPrBase, checks: [] }).status, "NO_TESTS");
+  assert.equal(evaluateBashCommand("gh pr merge 42 --squash", { prState: { ...openPrBase, checks: [] } }).decision, "allow");
+
+  // 15. PR query failure -> UNKNOWN (pr_query_failed) and blocked BEFORE CI aggregation
+  const prQueryFail = classifyCiStatus({ ok: false, prQueryOk: false, checks: [passCheck] });
+  assert.equal(prQueryFail.status, "UNKNOWN");
+  assert.equal(prQueryFail.queryErrorType, "pr_query_failed");
+  const prQueryFailMerge = evaluateBashCommand("gh pr merge 42 --squash", { prState: { ok: false, prQueryOk: false } });
+  assert.equal(prQueryFailMerge.decision, "deny");
+  assert.equal(prQueryFailMerge.ciStatus, "UNKNOWN");
+});
