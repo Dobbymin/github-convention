@@ -254,8 +254,8 @@ const UNAVAILABLE_MESSAGE_PATTERNS = [
   /recent account payments have failed/i,
   /spending limit needs to be increased/i,
   /billing & plans/i,
-  /actions is disabled/i,
-  /github actions is disabled/i,
+  /actions (?:is|are|has been|have been) disabled/i,
+  /github actions (?:is|are|has been|have been) disabled/i,
   /workflows? disabled/i,
   /quota exceeded/i,
   /minutes quota/i,
@@ -263,6 +263,13 @@ const UNAVAILABLE_MESSAGE_PATTERNS = [
 
 const isUnavailableMessage = (text) =>
   typeof text === "string" && UNAVAILABLE_MESSAGE_PATTERNS.some((re) => re.test(text));
+
+const isValidNumericId = (value) => /^\d+$/.test(String(value ?? "").trim());
+
+const isGithubActionsOrCheckUrl = (url) =>
+  /\/(?:github\.com\/[^/]+\/[^/]+\/(?:actions|runs|checks)|api\.github\.com\/repos\/[^/]+\/[^/]+\/(?:actions|check-runs))/.test(
+    String(url ?? ""),
+  );
 
 export const extractActionsJobFromUrl = (url) => {
   const raw = String(url ?? "");
@@ -285,7 +292,17 @@ export const extractCheckRunFromUrl = (url) => {
   return null;
 };
 
-const NETWORK_ERROR_REGEX = /dial tcp|connection refused|no such host|timed?\s*out|econnrefused|enotfound|etimedout|eof|tls|network/i;
+const hasGithubCheckLookupTarget = (check) =>
+  Boolean(
+    check?.check_run_url ||
+      (check?.checkRunId !== undefined && check?.checkRunId !== null && String(check.checkRunId).trim() !== "") ||
+      extractActionsJobFromUrl(check?.detailsUrl) ||
+      extractCheckRunFromUrl(check?.detailsUrl) ||
+      isGithubActionsOrCheckUrl(check?.detailsUrl),
+  );
+
+const TIMEOUT_ERROR_REGEX = /timed?\s*out|etimedout|deadline exceeded/i;
+const NETWORK_ERROR_REGEX = /dial tcp|connection refused|no such host|econnrefused|econnreset|enotfound|eof|tls|network/i;
 const AUTH_ERROR_REGEX = /bad credentials|not logged in|authentication|unauthorized|requires authentication/i;
 
 const parseGhIncludedOutput = (stdout, stderr, exitStatus, spawnError) => {
@@ -320,7 +337,9 @@ const parseGhIncludedOutput = (stdout, stderr, exitStatus, spawnError) => {
   let errorKind = null;
   if (!ok) {
     const combinedErr = `${errText}\n${body}`;
-    if (spawnError || NETWORK_ERROR_REGEX.test(combinedErr)) {
+    if (spawnError?.code === "ETIMEDOUT" || TIMEOUT_ERROR_REGEX.test(combinedErr)) {
+      errorKind = "timeout";
+    } else if (spawnError || NETWORK_ERROR_REGEX.test(combinedErr)) {
       errorKind = "network";
     } else if (statusCode === 401 || AUTH_ERROR_REGEX.test(combinedErr)) {
       errorKind = "auth";
@@ -340,6 +359,7 @@ const defaultGhApi = (endpoint, { cwd } = {}) => {
   const res = spawnSync("gh", ["api", "--include", endpoint], {
     cwd,
     encoding: "utf8",
+    timeout: 30000,
     stdio: ["ignore", "pipe", "pipe"],
   });
   return parseGhIncludedOutput(res.stdout, res.stderr, res.status, res.error);
@@ -350,7 +370,41 @@ export const inspectCheckRunUnavailableViaGh = (check, cwdOrOptions = {}) => {
   const cwd = opts.cwd;
   const ghApi = opts.ghApi ?? defaultGhApi;
 
+  if (check?.checkRunId !== undefined && check?.checkRunId !== null && String(check.checkRunId).trim() !== "") {
+    if (!isValidNumericId(check.checkRunId)) {
+      return {
+        status: "lookup_error",
+        checkRunId: null,
+        httpStatus: null,
+        errorKind: "invalid_check_run_id",
+        reason: `Malformed Check Run ID: ${String(check.checkRunId)}.`,
+      };
+    }
+  }
+
+  if (typeof check?.check_run_url === "string" && check.check_run_url.trim() !== "") {
+    if (!extractCheckRunFromUrl(check.check_run_url)) {
+      return {
+        status: "lookup_error",
+        checkRunId: null,
+        httpStatus: null,
+        errorKind: "invalid_check_run_id",
+        reason: `Malformed check_run_url: ${check.check_run_url}.`,
+      };
+    }
+  }
+
   const jobInfo = extractActionsJobFromUrl(check?.detailsUrl);
+  if (!jobInfo && /\/github\.com\/[^/]+\/[^/]+\/actions\/runs\/[^/]+\/job\//.test(String(check?.detailsUrl ?? ""))) {
+    return {
+      status: "lookup_error",
+      checkRunId: null,
+      httpStatus: null,
+      errorKind: "invalid_job_id",
+      reason: `Malformed Actions job URL: ${String(check?.detailsUrl ?? "")}.`,
+    };
+  }
+
   let checkRunTarget =
     extractCheckRunFromUrl(check?.check_run_url) ??
     extractCheckRunFromUrl(check?.detailsUrl);
@@ -402,6 +456,16 @@ export const inspectCheckRunUnavailableViaGh = (check, cwdOrOptions = {}) => {
       };
     }
 
+    if (!job || typeof job !== "object" || Array.isArray(job)) {
+      return {
+        status: "lookup_error",
+        checkRunId: null,
+        httpStatus: jobRes.statusCode ?? 200,
+        errorKind: "invalid_response",
+        reason: "Actions job response was not a JSON object.",
+      };
+    }
+
     const steps = Array.isArray(job?.steps) ? job.steps : [];
     if (steps.length > 0) {
       return {
@@ -413,11 +477,31 @@ export const inspectCheckRunUnavailableViaGh = (check, cwdOrOptions = {}) => {
       };
     }
 
+    if (typeof job?.check_run_url === "string" && job.check_run_url.trim() !== "" && !extractCheckRunFromUrl(job.check_run_url)) {
+      return {
+        status: "lookup_error",
+        checkRunId: null,
+        httpStatus: jobRes.statusCode ?? 200,
+        errorKind: "invalid_check_run_id",
+        reason: `Actions job ${jobInfo.jobId} returned malformed check_run_url.`,
+      };
+    }
+
+    if (job?.check_run_id !== undefined && job?.check_run_id !== null && String(job.check_run_id).trim() !== "" && !isValidNumericId(job.check_run_id)) {
+      return {
+        status: "lookup_error",
+        checkRunId: null,
+        httpStatus: jobRes.statusCode ?? 200,
+        errorKind: "invalid_check_run_id",
+        reason: `Actions job ${jobInfo.jobId} returned malformed check_run_id.`,
+      };
+    }
+
     checkRunTarget =
       extractCheckRunFromUrl(job?.check_run_url) ??
-      (job?.check_run_id ? { repoSlug: jobInfo.repoSlug, checkRunId: String(job.check_run_id) } : null) ??
+      (isValidNumericId(job?.check_run_id) ? { repoSlug: jobInfo.repoSlug, checkRunId: String(job.check_run_id).trim() } : null) ??
       checkRunTarget ??
-      (check?.checkRunId ? { repoSlug: jobInfo.repoSlug, checkRunId: String(check.checkRunId) } : null);
+      (isValidNumericId(check?.checkRunId) ? { repoSlug: jobInfo.repoSlug, checkRunId: String(check.checkRunId).trim() } : null);
 
     if (!checkRunTarget?.checkRunId) {
       return {
@@ -438,7 +522,7 @@ export const inspectCheckRunUnavailableViaGh = (check, cwdOrOptions = {}) => {
         reason: "Check run executed steps before failing.",
       };
     }
-    checkRunTarget = { repoSlug: String(check.repoSlug), checkRunId: String(check.checkRunId) };
+    checkRunTarget = { repoSlug: String(check.repoSlug), checkRunId: String(check.checkRunId).trim() };
   }
 
   if (!checkRunTarget?.checkRunId || !checkRunTarget?.repoSlug) {
@@ -507,10 +591,17 @@ export const inspectCheckRunUnavailableViaGh = (check, cwdOrOptions = {}) => {
     };
   }
 
-  if (
-    Array.isArray(annotations) &&
-    annotations.some((ann) => isUnavailableMessage(ann?.message) || isUnavailableMessage(ann?.title))
-  ) {
+  if (!Array.isArray(annotations)) {
+    return {
+      status: "lookup_error",
+      checkRunId: checkRunTarget.checkRunId,
+      httpStatus: annRes.statusCode ?? 200,
+      errorKind: "invalid_response",
+      reason: "Check Run annotations response was not a JSON array.",
+    };
+  }
+
+  if (annotations.some((ann) => isUnavailableMessage(ann?.message) || isUnavailableMessage(ann?.title))) {
     return {
       status: "unavailable",
       checkRunId: checkRunTarget.checkRunId,
@@ -569,12 +660,12 @@ const FAILING_CONCLUSIONS = new Set([
   "STALE",
 ]);
 
-const evaluateCheckUnavailability = (check, { cwd, ghApi } = {}) => {
+export const evaluateCheckUnavailability = (check, { cwd, ghApi } = {}) => {
   if (!check || typeof check !== "object") return { status: "failed" };
+  if (Array.isArray(check.steps) && check.steps.length > 0) {
+    return { status: "failed", reason: "Check executed steps before failing." };
+  }
   if (check.unavailable === true || check.billingBlocked === true || check.ciDisabled === true) {
-    if (Array.isArray(check.steps) && check.steps.length > 0) {
-      return { status: "failed" };
-    }
     return { status: "unavailable" };
   }
   const texts = [
@@ -588,15 +679,12 @@ const evaluateCheckUnavailability = (check, { cwd, ghApi } = {}) => {
       : []),
   ];
   if (texts.some((t) => isUnavailableMessage(t))) {
-    if (Array.isArray(check.steps) && check.steps.length > 0) {
-      return { status: "failed" };
-    }
     return { status: "unavailable" };
   }
   const conclusion = String(check.conclusion ?? "").toUpperCase();
   if (
     (conclusion === "FAILURE" || conclusion === "STARTUP_FAILURE") &&
-    (check.detailsUrl || check.check_run_url || check.checkRunId) &&
+    hasGithubCheckLookupTarget(check) &&
     (cwd || ghApi)
   ) {
     return inspectCheckRunUnavailableViaGh(check, { cwd, ghApi });
@@ -668,6 +756,14 @@ export const classifyCiStatus = (prState, { cwd, ghApi, expectedHeadSha = null }
         continue;
       }
 
+      if (
+        PASSING_CONCLUSIONS.has(conclusion) ||
+        checkState === "SUCCESS"
+      ) {
+        passing.push(name);
+        continue;
+      }
+
       const unavailEval = evaluateCheckUnavailability(check, { cwd, ghApi });
       if (unavailEval.status === "unavailable") {
         unavailable.push(name);
@@ -675,6 +771,8 @@ export const classifyCiStatus = (prState, { cwd, ghApi, expectedHeadSha = null }
       }
       if (unavailEval.status === "lookup_error") {
         lookupErrors.push({ name, ...unavailEval });
+        unknown.push(name);
+        continue;
       }
 
       if (
@@ -683,14 +781,6 @@ export const classifyCiStatus = (prState, { cwd, ghApi, expectedHeadSha = null }
         checkState === "ERROR"
       ) {
         failing.push(name);
-        continue;
-      }
-
-      if (
-        PASSING_CONCLUSIONS.has(conclusion) ||
-        checkState === "SUCCESS"
-      ) {
-        passing.push(name);
         continue;
       }
 
@@ -734,15 +824,19 @@ export const classifyCiStatus = (prState, { cwd, ghApi, expectedHeadSha = null }
     prState.ciQueryOk === false ||
     Boolean(prState.checksError) ||
     checks === null ||
-    unknown.length > 0
+    unknown.length > 0 ||
+    lookupErrors.length > 0
   ) {
+    const reason =
+      lookupErrors.length > 0
+        ? `CI check lookup failed (${lookupErrors.map((e) => `${e.name}: ${e.errorKind ?? "error"}`).join(", ")}); cannot confirm real test failure vs CI unavailability.`
+        : unknown.length > 0
+          ? `Unrecognized or stale CI check state(s): ${unknown.join(", ")}.`
+          : "CI check status could not be queried reliably.";
     return {
       status: "UNKNOWN",
       queryErrorType: "ci_query_failed",
-      reason:
-        unknown.length > 0
-          ? `Unrecognized or stale CI check state(s): ${unknown.join(", ")}.`
-          : "CI check status could not be queried reliably.",
+      reason,
       passing,
       failing,
       pending,
