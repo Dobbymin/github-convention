@@ -35,8 +35,8 @@ When PR inspection shows merge conflicts (`CONFLICTING` / `DIRTY`):
 Evaluate CI status across the 6 canonical states (`PASS`, `FAIL`, `PENDING`, `NO_TESTS`, `UNAVAILABLE`, `UNKNOWN`):
 
 - **`PENDING`**: Always wait until checks finish; never use `--auto` to bypass pending tests or classify `PENDING` as `UNAVAILABLE`.
-- **`NO_TESTS` / `UNAVAILABLE`**: When no tests exist (`NO_TESTS`) or GitHub Actions cannot start jobs due to quota/billing limits or disabled Actions (`UNAVAILABLE`, with 0 executed steps and no actual test failure), auto-merge is permitted once local verification and conflict/blocker checks pass.
-- **`UNKNOWN`**: Distinguish CI query failure from PR state failure. If PR is not confirmed `OPEN` or check status cannot be trusted, block merge and diagnose.
+- **`NO_TESTS` / `UNAVAILABLE`**: When no tests exist (`NO_TESTS`, explicitly empty check list with no configured checks missing) or GitHub Actions cannot start jobs due to verified quota/billing limits or disabled Actions (`UNAVAILABLE`, confirmed via `check_run_url` Check Run annotations with 0 executed steps and no actual test failure), auto-merge is permitted once local verification and conflict/blocker checks pass. Mixed `PASS + UNAVAILABLE` classifies as `UNAVAILABLE` (not `PASS`).
+- **`UNKNOWN`**: Distinguish CI query failure (missing Check Run ID, HTTP 401/403 auth error, 404, network error, or missing CI state) from `UNAVAILABLE` and from PR state failure. If PR is not confirmed `OPEN` or check status cannot be trusted (including missing CI state after conflict resolution), block merge and diagnose.
 - **`FAIL`**: Inspect failing logs (`gh run view --log-failed`) and classify:
 
 | Failure Class | Action | Retry Bound |

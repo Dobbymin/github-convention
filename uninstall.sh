@@ -191,6 +191,31 @@ verify_orphan_copy_dir_contents() {
   return 0
 }
 
+collect_skill_rel_files_walk() {
+  _CW_DIR="$1"
+  _CW_PREFIX="$2"
+  for _CW_ITEM in "$_CW_DIR"/* "$_CW_DIR"/.*; do
+    [ -e "$_CW_ITEM" ] || [ -L "$_CW_ITEM" ] || continue
+    _CW_BASE="$(basename -- "$_CW_ITEM")"
+    case "$_CW_BASE" in
+      .|..|.DS_Store|"$MARKER_FILE") continue ;;
+    esac
+    if [ -L "$_CW_ITEM" ]; then
+      return 1
+    fi
+    _CW_REL="${_CW_PREFIX:+$_CW_PREFIX/}$_CW_BASE"
+    if [ -d "$_CW_ITEM" ]; then
+      collect_skill_rel_files_walk "$_CW_ITEM" "$_CW_REL" || return 1
+    elif [ -f "$_CW_ITEM" ]; then
+      printf '%s\n' "$_CW_REL"
+    fi
+  done
+}
+
+collect_skill_rel_files() {
+  collect_skill_rel_files_walk "$1" "" | LC_ALL=C sort | paste -sd ',' -
+}
+
 is_owned_copy_dir() {
   DEST_PATH="$1"
   SKILL_NAME="$2"
@@ -213,6 +238,25 @@ is_owned_copy_dir() {
   esac
 
   if grep -qx "plugin=$PLUGIN_ID" "$MARKER_PATH" 2>/dev/null; then
+    for _REQ_KEY in schema_version plugin managed-by install-mode skill install-path source files; do
+      _KEY_CNT="$(grep -c "^${_REQ_KEY}=" "$MARKER_PATH" 2>/dev/null || printf '0')"
+      if [ "$_KEY_CNT" -gt 1 ]; then
+        return 1
+      fi
+    done
+    while IFS= read -r _MKLINE; do
+      [ -n "$_MKLINE" ] || continue
+      case "$_MKLINE" in
+        schema_version=*|plugin=*|managed-by=*|install-mode=*|skill=*|install-path=*|source=*|files=*)
+          _MK_VAL="${_MKLINE#*=}"
+          [ -n "$_MK_VAL" ] || return 1
+          ;;
+        *)
+          return 1
+          ;;
+      esac
+    done < "$MARKER_PATH"
+
     if [ "$(grep -c "^plugin=" "$MARKER_PATH" 2>/dev/null || printf '0')" -ne 1 ]; then
       return 1
     fi
@@ -253,6 +297,9 @@ is_owned_copy_dir() {
         fi
       done
       IFS="$OLD_IFS"
+      ACTUAL_FILES_SORTED="$(collect_skill_rel_files "$DEST_PATH")"
+      RECORDED_FILES_SORTED="$(printf '%s\n' "$MARKER_FILES" | tr ',' '\n' | LC_ALL=C sort | paste -sd ',' -)"
+      [ "$ACTUAL_FILES_SORTED" = "$RECORDED_FILES_SORTED" ] || return 1
     fi
 
     if [ -d "$CANON_EXPECTED_SOURCE" ]; then
@@ -278,6 +325,12 @@ is_owned_manifest() {
   MANIFEST_PATH="$1"
   EXPECTED_TARGET_DIR="${2:-$(dirname -- "$MANIFEST_PATH")}"
   [ -f "$MANIFEST_PATH" ] && [ ! -L "$MANIFEST_PATH" ] || return 1
+  for _MH_KEY in schema_version plugin managed_by install_scope install_target install_mode source_root; do
+    _MH_CNT="$(grep -c "^${_MH_KEY}=" "$MANIFEST_PATH" 2>/dev/null || printf '0')"
+    if [ "$_MH_CNT" -gt 1 ]; then
+      return 1
+    fi
+  done
   if [ "$(grep -c "^plugin=" "$MANIFEST_PATH" 2>/dev/null || printf '0')" -ne 1 ]; then
     return 1
   fi
@@ -285,26 +338,31 @@ is_owned_manifest() {
   if grep -q "^schema_version=" "$MANIFEST_PATH" 2>/dev/null; then
     grep -qx "schema_version=1" "$MANIFEST_PATH" 2>/dev/null || return 1
   fi
+  CANON_EXP_TARGET="$(canonicalize_path "$EXPECTED_TARGET_DIR")" || return 1
   if grep -q "^install_target=" "$MANIFEST_PATH" 2>/dev/null; then
     REC_TARGET="$(sed -n 's/^install_target=//p' "$MANIFEST_PATH" | head -n 1)"
     [ -n "$REC_TARGET" ] || return 1
     CANON_REC_TARGET="$(canonicalize_path "$REC_TARGET")" || return 1
-    CANON_EXP_TARGET="$(canonicalize_path "$EXPECTED_TARGET_DIR")" || return 1
     [ "$CANON_REC_TARGET" = "$CANON_EXP_TARGET" ] || return 1
   fi
   while IFS= read -r _MLINE; do
     [ -n "$_MLINE" ] || continue
     case "$_MLINE" in
       schema_version=*|plugin=*|managed_by=*|install_scope=*|install_target=*|install_mode=*|source_root=*)
+        [ -n "${_MLINE#*=}" ] || return 1
         ;;
       entry\|*)
         _M_SKILL="$(printf '%s' "$_MLINE" | cut -d'|' -f2)"
         _M_MODE="$(printf '%s' "$_MLINE" | cut -d'|' -f3)"
         _M_DEST="$(printf '%s' "$_MLINE" | cut -d'|' -f4)"
         _M_SRC="$(printf '%s' "$_MLINE" | cut -d'|' -f5)"
+        _M_EXTRA="$(printf '%s' "$_MLINE" | cut -d'|' -f6)"
+        [ -z "$_M_EXTRA" ] || return 1
         is_safe_skill_name "$_M_SKILL" || return 1
         [ "$_M_MODE" = "symlink" ] || [ "$_M_MODE" = "copy" ] || return 1
         [ -n "$_M_DEST" ] && [ -n "$_M_SRC" ] || return 1
+        _M_CANON_DEST="$(canonicalize_path "$_M_DEST")" || return 1
+        [ "$_M_CANON_DEST" = "$CANON_EXP_TARGET/$_M_SKILL" ] || return 1
         ;;
       *)
         return 1

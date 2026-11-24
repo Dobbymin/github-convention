@@ -426,15 +426,32 @@ test("16-scenario ownership, forged marker, pre-deletion re-verification, and rm
       assert.equal(fs.existsSync(extSkillDir), true);
     }
 
+    // (a2) Duplicate required fields or unknown key in marker -> refused
+    for (const dupLine of [
+      "skill=using-github-convention\n",
+      `install-path=${extSkillDir}\n`,
+      "files=SKILL.md\n",
+      "unknown_extra_key=1\n",
+    ]) {
+      fs.writeFileSync(extMarker, `${origExtMarker}${dupLine}`);
+      assert.throws(() => runUninstaller({ target: extTarget }), /unmanaged path/);
+      assert.equal(fs.existsSync(extSkillDir), true);
+    }
+    fs.writeFileSync(extMarker, origExtMarker);
+
     // (b) Wrong Skill ID in marker -> refused
     fs.writeFileSync(extMarker, origExtMarker.replace("skill=using-github-convention", "skill=wrong-skill-id"));
     assert.throws(() => runUninstaller({ target: extTarget }), /unmanaged path/);
     fs.writeFileSync(extMarker, origExtMarker);
 
-    // (c) Manifest tampering (invalid schema_version, unknown line, or mismatched install_target) -> refused
+    // (c) Manifest tampering (invalid schema_version, unknown line, duplicate header key, or 6-field entry) -> refused
     fs.writeFileSync(extManifest, origExtManifest.replace("schema_version=1", "schema_version=999"));
     assert.throws(() => runUninstaller({ target: extTarget }), /unmanaged manifest/);
     fs.writeFileSync(extManifest, `${origExtManifest}corrupted_line_without_equals\n`);
+    assert.throws(() => runUninstaller({ target: extTarget }), /unmanaged manifest/);
+    fs.writeFileSync(extManifest, `${origExtManifest}install_mode=copy\n`);
+    assert.throws(() => runUninstaller({ target: extTarget }), /unmanaged manifest/);
+    fs.writeFileSync(extManifest, `${origExtManifest}entry|extra|copy|${extSkillDir}|src|extra-field\n`);
     assert.throws(() => runUninstaller({ target: extTarget }), /unmanaged manifest/);
     fs.writeFileSync(extManifest, origExtManifest);
 
@@ -570,6 +587,28 @@ test("16-scenario ownership, forged marker, pre-deletion re-verification, and rm
       const shOrphanUpdateOk = runPosixScript(INSTALL_SH, ["--target", shOrphanTarget, "--copy"]);
       assert.equal(shOrphanUpdateOk.status, 0, shOrphanUpdateOk.stderr);
       assert.equal(fs.existsSync(shRetiredDir), false);
+
+      // POSIX duplicate marker field, unknown marker key, and duplicate manifest header key must be rejected
+      const shDupTarget = path.join(tempDir, "sh-dup-fields");
+      assert.equal(runPosixScript(INSTALL_SH, ["--target", shDupTarget, "--copy"]).status, 0);
+      const shDupSkillDir = path.join(canonicalizePath(shDupTarget), "using-github-convention");
+      const shDupMarker = path.join(shDupSkillDir, ".github-convention-script-managed");
+      const origShDupMarker = fs.readFileSync(shDupMarker, "utf8");
+      fs.writeFileSync(shDupMarker, `${origShDupMarker}skill=using-github-convention\n`);
+      assert.notEqual(runPosixScript(UNINSTALL_SH, ["--target", shDupTarget]).status, 0);
+      assert.equal(fs.existsSync(shDupSkillDir), true);
+
+      fs.writeFileSync(shDupMarker, `${origShDupMarker}unknown_key=1\n`);
+      assert.notEqual(runPosixScript(UNINSTALL_SH, ["--target", shDupTarget]).status, 0);
+      assert.equal(fs.existsSync(shDupSkillDir), true);
+      fs.writeFileSync(shDupMarker, origShDupMarker);
+
+      // User-added subdirectory inside copied skill directory must be preserved in POSIX
+      const shUserSubdir = path.join(shDupSkillDir, "user-subdir");
+      fs.mkdirSync(shUserSubdir, { recursive: true });
+      fs.writeFileSync(path.join(shUserSubdir, "notes.md"), "user notes\n");
+      assert.notEqual(runPosixScript(UNINSTALL_SH, ["--target", shDupTarget]).status, 0);
+      assert.equal(fs.readFileSync(path.join(shUserSubdir, "notes.md"), "utf8"), "user notes\n");
     }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });

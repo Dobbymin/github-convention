@@ -217,6 +217,19 @@ const verifyOrphanCopyDirContents = (destDir) => {
   return true;
 };
 
+const escapeRegExp = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const ALLOWED_MARKER_KEYS = new Set([
+  "schema_version",
+  "plugin",
+  "managed-by",
+  "install-mode",
+  "skill",
+  "install-path",
+  "source",
+  "files",
+]);
+
 export const isOwnedCopyDir = (destPath, skillName, canonDestPath, expectedSourceDir, skillsRoot = expectedSourceDir ? path.dirname(expectedSourceDir) : null) => {
   if (!isSafeSkillName(skillName)) return false;
   let stat;
@@ -246,7 +259,7 @@ export const isOwnedCopyDir = (destPath, skillName, canonDestPath, expectedSourc
   }
   if (!skillMdStat.isFile() || skillMdStat.isSymbolicLink()) return false;
   const skillMdContent = fs.readFileSync(skillMdPath, "utf8");
-  if (!new RegExp(`^name:\\s*${skillName}\\s*$`, "m").test(skillMdContent)) {
+  if (!new RegExp(`^name:\\s*${escapeRegExp(skillName)}\\s*$`, "m").test(skillMdContent)) {
     return false;
   }
 
@@ -268,6 +281,19 @@ export const isOwnedCopyDir = (destPath, skillName, canonDestPath, expectedSourc
   const pluginLines = lines.filter((l) => l.startsWith("plugin="));
 
   if (pluginLines.length === 1 && pluginLines[0] === `plugin=${PLUGIN_ID}`) {
+    // Reject duplicate or unknown keys in v1 markers
+    const seenKeys = new Set();
+    for (const line of lines) {
+      const eqIdx = line.indexOf("=");
+      if (eqIdx === -1) return false;
+      const key = line.slice(0, eqIdx);
+      const val = line.slice(eqIdx + 1);
+      if (!ALLOWED_MARKER_KEYS.has(key) || !val || seenKeys.has(key)) {
+        return false;
+      }
+      seenKeys.add(key);
+    }
+
     // Require exact required marker metadata fields: skill=, install-path=, source=
     const skillLines = lines.filter((l) => l.startsWith("skill="));
     if (skillLines.length !== 1 || skillLines[0] !== `skill=${skillName}`) return false;
@@ -368,6 +394,7 @@ export const isOwnedManifest = (manifestPath, expectedTargetDir = path.dirname(m
       }
     }
 
+    const seenHeaderKeys = new Set();
     for (const line of lines) {
       if (line.startsWith("entry|")) {
         const parts = line.split("|");
@@ -385,7 +412,8 @@ export const isOwnedManifest = (manifestPath, expectedTargetDir = path.dirname(m
       if (eqIdx === -1) return false;
       const key = line.slice(0, eqIdx);
       const val = line.slice(eqIdx + 1);
-      if (!ALLOWED_MANIFEST_KEYS.has(key) || !val) return false;
+      if (!ALLOWED_MANIFEST_KEYS.has(key) || !val || seenHeaderKeys.has(key)) return false;
+      seenHeaderKeys.add(key);
     }
 
     return true;

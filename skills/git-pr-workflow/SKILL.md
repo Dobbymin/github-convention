@@ -47,9 +47,9 @@ Classify PR CI status (`gh pr view <pr> --json isDraft,state,mergeable,mergeStat
 | `UNAVAILABLE` | CI cannot run (Actions quota/billing limit or Actions disabled) | Allow merge after local verification |
 | `UNKNOWN` | PR or CI status query failed or check state cannot be trusted | Block merge; diagnose cause safely |
 
-- **Critical distinctions**: Never confuse `NO_TESTS` with `UNAVAILABLE`, never treat `PENDING` as `UNAVAILABLE`, never misclassify a real test failure (`FAIL`) as `UNAVAILABLE`, and distinguish CI query failure (`UNKNOWN`) from PR state query failure (never merge if PR cannot be verified `OPEN`).
+- **Critical distinctions**: Priority order is `FAIL > PENDING > UNKNOWN > UNAVAILABLE > PASS > NO_TESTS` (so `PASS + UNAVAILABLE` classifies as `UNAVAILABLE`, while any confirmed `FAIL` or `PENDING` always wins). Never confuse `NO_TESTS` with `UNAVAILABLE`, never treat `PENDING` as `UNAVAILABLE`, never misclassify a real test failure (`FAIL`) as `UNAVAILABLE`, and distinguish CI query failure (`UNKNOWN`, including missing Check Run IDs or auth/404/network API errors) from PR state query failure (never merge if PR cannot be verified `OPEN`).
 - **Auto-merge preconditions**: PR is `OPEN`, not Draft, zero failing tests (`PASS`, `NO_TESTS`, or `UNAVAILABLE`), conflicts resolved (`MERGEABLE`), zero unresolved blockers, and `github.auto_merge_on_ci_pass` is not `false`.
-- **`merge_method` selection**: Resolve `github.merge_method` from `.github-convention/config.yaml` (`squash` | `merge` | `rebase`; invalid or omitted defaults to `squash`, respecting repository allowed merge methods):
+- **`merge_method` selection & precedence**: `repo allowed merge methods > explicit project config (github.merge_method) > explicit CLI flag > default (squash)`. Invalid or omitted config defaults to `squash`:
   - `gh pr merge <PR> --squash --delete-branch`
   - `gh pr merge <PR> --merge --delete-branch`
   - `gh pr merge <PR> --rebase --delete-branch`

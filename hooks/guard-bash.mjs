@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -42,6 +42,70 @@ export const buildPrMergeCommand = (prRef, { mergeMethod = "squash", allowedMeth
     parts.push("--delete-branch");
   }
   return parts.join(" ");
+};
+
+const extractCliMergeMethods = (args) => {
+  const methods = [];
+  for (const arg of args) {
+    if (arg === "--squash" || arg === "-s") methods.push("squash");
+    else if (arg === "--merge" || arg === "-m") methods.push("merge");
+    else if (arg === "--rebase" || arg === "-r") methods.push("rebase");
+  }
+  return Array.from(new Set(methods));
+};
+
+export const resolveEffectiveMergeMethod = ({
+  cliMethods = [],
+  configMethod = "squash",
+  configExplicit = false,
+  allowedMethods = null,
+} = {}) => {
+  const uniqueCli = Array.from(
+    new Set(
+      cliMethods
+        .map((m) => String(m).trim().toLowerCase())
+        .filter((m) => VALID_MERGE_METHODS.has(m)),
+    ),
+  );
+  if (uniqueCli.length > 1) {
+    return {
+      ok: false,
+      method: null,
+      reason: `Blocked: conflicting CLI merge method flags (${uniqueCli.map((m) => `--${m}`).join(", ")}). Specify at most one merge method.`,
+    };
+  }
+
+  const cliMethod = uniqueCli[0] ?? null;
+  const normalizedConfig = typeof configMethod === "string" ? configMethod.trim().toLowerCase() : "";
+  const validConfigMethod = VALID_MERGE_METHODS.has(normalizedConfig) ? normalizedConfig : "squash";
+
+  if (configExplicit && cliMethod && cliMethod !== validConfigMethod) {
+    return {
+      ok: false,
+      method: null,
+      reason: `Blocked: CLI merge method (\`--${cliMethod}\`) conflicts with project config \`github.merge_method: ${validConfigMethod}\`.`,
+    };
+  }
+
+  const chosen = configExplicit ? validConfigMethod : (cliMethod ?? validConfigMethod);
+  if (Array.isArray(allowedMethods) && allowedMethods.length > 0) {
+    const validAllowed = allowedMethods
+      .map((m) => String(m).trim().toLowerCase())
+      .filter((m) => VALID_MERGE_METHODS.has(m));
+    if (validAllowed.length > 0 && !validAllowed.includes(chosen)) {
+      if (cliMethod && !configExplicit) {
+        return {
+          ok: false,
+          method: null,
+          reason: `Blocked: requested merge method (\`--${cliMethod}\`) is not allowed by repository settings (allowed: ${validAllowed.join(", ")}).`,
+        };
+      }
+      const fallback = validAllowed.includes("squash") ? "squash" : validAllowed[0];
+      return { ok: true, method: fallback };
+    }
+  }
+
+  return { ok: true, method: chosen };
 };
 
 const splitSubcommands = (command) =>
@@ -138,10 +202,13 @@ export const readGithubConfig = (startDir) => {
           const configured = branchMatch ? branchMatch[1] : "";
           const autoMergeMatch = section.match(/^\s+auto_merge_on_ci_pass:\s*(true|false)/im);
           const mergeMethodMatch = section.match(/^\s+merge_method:\s*["']?([^\s"'#]+)["']?/m);
+          const rawMethod = mergeMethodMatch ? mergeMethodMatch[1].trim().toLowerCase() : "";
+          const mergeMethodExplicit = VALID_MERGE_METHODS.has(rawMethod);
           return {
             defaultBranch: configured && configured !== "detect" ? configured : null,
             autoMergeOnCiPass: autoMergeMatch ? autoMergeMatch[1].toLowerCase() === "true" : true,
-            mergeMethod: resolveMergeMethod(mergeMethodMatch ? mergeMethodMatch[1] : "squash"),
+            mergeMethod: mergeMethodExplicit ? rawMethod : "squash",
+            mergeMethodExplicit,
           };
         }
       }
@@ -149,11 +216,11 @@ export const readGithubConfig = (startDir) => {
       // Ignore unreadable config; fallback to defaults.
     }
     if (fs.existsSync(path.join(current, ".git"))) {
-      return { defaultBranch: null, autoMergeOnCiPass: true, mergeMethod: "squash" };
+      return { defaultBranch: null, autoMergeOnCiPass: true, mergeMethod: "squash", mergeMethodExplicit: false };
     }
     const parent = path.dirname(current);
     if (parent === current) {
-      return { defaultBranch: null, autoMergeOnCiPass: true, mergeMethod: "squash" };
+      return { defaultBranch: null, autoMergeOnCiPass: true, mergeMethod: "squash", mergeMethodExplicit: false };
     }
     current = parent;
   }
@@ -197,63 +264,297 @@ const UNAVAILABLE_MESSAGE_PATTERNS = [
 const isUnavailableMessage = (text) =>
   typeof text === "string" && UNAVAILABLE_MESSAGE_PATTERNS.some((re) => re.test(text));
 
-const inspectCheckRunUnavailableViaGh = (check, cwd) => {
-  const detailsUrl = String(check?.detailsUrl ?? "");
-  const jobMatch = detailsUrl.match(/\/github\.com\/([^/]+\/[^/]+)\/actions\/runs\/\d+\/job\/(\d+)/);
-  if (!jobMatch) return false;
-  const [, repoSlug, jobId] = jobMatch;
-  try {
-    const rawJob = execFileSync("gh", ["api", `repos/${repoSlug}/actions/jobs/${jobId}`], {
-      cwd,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    const job = JSON.parse(rawJob);
+export const extractActionsJobFromUrl = (url) => {
+  const raw = String(url ?? "");
+  const match = raw.match(/\/github\.com\/([^/]+\/[^/]+)\/actions\/runs\/\d+\/job\/(\d+)/);
+  if (!match) return null;
+  return { repoSlug: match[1], jobId: match[2] };
+};
+
+export const extractCheckRunFromUrl = (url) => {
+  const raw = String(url ?? "").trim();
+  if (!raw) return null;
+  const apiMatch = raw.match(/(?:https?:\/\/api\.github\.com\/)?repos\/([^/]+\/[^/]+)\/check-runs\/(\d+)(?:\/.*)?$/);
+  if (apiMatch) {
+    return { repoSlug: apiMatch[1], checkRunId: apiMatch[2] };
+  }
+  const webRunMatch = raw.match(/\/github\.com\/([^/]+\/[^/]+)\/runs\/(\d+)(?:[?#].*)?$/);
+  if (webRunMatch) {
+    return { repoSlug: webRunMatch[1], checkRunId: webRunMatch[2] };
+  }
+  return null;
+};
+
+const NETWORK_ERROR_REGEX = /dial tcp|connection refused|no such host|timed?\s*out|econnrefused|enotfound|etimedout|eof|tls|network/i;
+const AUTH_ERROR_REGEX = /bad credentials|not logged in|authentication|unauthorized|requires authentication/i;
+
+const parseGhIncludedOutput = (stdout, stderr, exitStatus, spawnError) => {
+  const outText = String(stdout ?? "");
+  const errText = String(stderr ?? "");
+  let statusCode = null;
+  let body = outText.trim();
+
+  if (/^HTTP\/\S+\s+\d{3}/m.test(outText)) {
+    let remaining = outText;
+    while (/^HTTP\/\S+\s+(\d{3})/.test(remaining)) {
+      const codeMatch = remaining.match(/^HTTP\/\S+\s+(\d{3})/);
+      statusCode = Number.parseInt(codeMatch[1], 10);
+      const sepMatch = remaining.match(/\r?\n\r?\n/);
+      if (!sepMatch) {
+        remaining = "";
+        break;
+      }
+      remaining = remaining.slice(sepMatch.index + sepMatch[0].length);
+    }
+    body = remaining.trim();
+  }
+
+  if (statusCode === null) {
+    const errHttpMatch = errText.match(/\bHTTP\s+(\d{3})\b/i);
+    if (errHttpMatch) {
+      statusCode = Number.parseInt(errHttpMatch[1], 10);
+    }
+  }
+
+  const ok = !spawnError && exitStatus === 0 && (statusCode === null || (statusCode >= 200 && statusCode < 300));
+  let errorKind = null;
+  if (!ok) {
+    const combinedErr = `${errText}\n${body}`;
+    if (spawnError || NETWORK_ERROR_REGEX.test(combinedErr)) {
+      errorKind = "network";
+    } else if (statusCode === 401 || AUTH_ERROR_REGEX.test(combinedErr)) {
+      errorKind = "auth";
+    } else if (statusCode === 403 && !isUnavailableMessage(combinedErr)) {
+      errorKind = "auth";
+    } else if (statusCode === 404) {
+      errorKind = "not_found";
+    } else {
+      errorKind = "api_error";
+    }
+  }
+
+  return { ok, statusCode, body, stderr: errText.trim(), errorKind };
+};
+
+const defaultGhApi = (endpoint, { cwd } = {}) => {
+  const res = spawnSync("gh", ["api", "--include", endpoint], {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  return parseGhIncludedOutput(res.stdout, res.stderr, res.status, res.error);
+};
+
+export const inspectCheckRunUnavailableViaGh = (check, cwdOrOptions = {}) => {
+  const opts = typeof cwdOrOptions === "string" ? { cwd: cwdOrOptions } : (cwdOrOptions ?? {});
+  const cwd = opts.cwd;
+  const ghApi = opts.ghApi ?? defaultGhApi;
+
+  const jobInfo = extractActionsJobFromUrl(check?.detailsUrl);
+  let checkRunTarget =
+    extractCheckRunFromUrl(check?.check_run_url) ??
+    extractCheckRunFromUrl(check?.detailsUrl);
+
+  if (jobInfo) {
+    let jobRes;
+    try {
+      jobRes = ghApi(`repos/${jobInfo.repoSlug}/actions/jobs/${jobInfo.jobId}`, { cwd });
+    } catch (error) {
+      return {
+        status: "lookup_error",
+        checkRunId: null,
+        httpStatus: null,
+        errorKind: "network",
+        reason: `Failed to query Actions job ${jobInfo.jobId}: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+
+    if (!jobRes?.ok) {
+      const errText = `${jobRes?.body ?? ""}\n${jobRes?.stderr ?? ""}`;
+      if ((jobRes?.statusCode === 402 || jobRes?.statusCode === 403) && isUnavailableMessage(errText)) {
+        return {
+          status: "unavailable",
+          checkRunId: null,
+          httpStatus: jobRes.statusCode,
+          errorKind: null,
+          reason: "GitHub Actions job blocked by billing/quota or Actions disabled.",
+        };
+      }
+      return {
+        status: "lookup_error",
+        checkRunId: null,
+        httpStatus: jobRes?.statusCode ?? null,
+        errorKind: jobRes?.errorKind ?? "api_error",
+        reason: `Actions job lookup failed (HTTP ${jobRes?.statusCode ?? "unknown"}, kind=${jobRes?.errorKind ?? "api_error"}).`,
+      };
+    }
+
+    let job;
+    try {
+      job = JSON.parse(jobRes.body);
+    } catch {
+      return {
+        status: "lookup_error",
+        checkRunId: null,
+        httpStatus: jobRes.statusCode ?? 200,
+        errorKind: "invalid_json",
+        reason: "Actions job response was not valid JSON.",
+      };
+    }
+
     const steps = Array.isArray(job?.steps) ? job.steps : [];
     if (steps.length > 0) {
-      return false;
+      return {
+        status: "failed",
+        checkRunId: extractCheckRunFromUrl(job?.check_run_url)?.checkRunId ?? null,
+        httpStatus: jobRes.statusCode ?? 200,
+        errorKind: null,
+        reason: "Job executed steps before failing.",
+      };
     }
-    const rawAnnotations = execFileSync(
-      "gh",
-      ["api", `repos/${repoSlug}/check-runs/${jobId}/annotations`],
-      {
-        cwd,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
-      },
-    ).trim();
-    const annotations = JSON.parse(rawAnnotations);
-    return (
-      Array.isArray(annotations) &&
-      annotations.some((ann) => isUnavailableMessage(ann?.message) || isUnavailableMessage(ann?.title))
-    );
-  } catch {
-    return false;
+
+    checkRunTarget =
+      extractCheckRunFromUrl(job?.check_run_url) ??
+      (job?.check_run_id ? { repoSlug: jobInfo.repoSlug, checkRunId: String(job.check_run_id) } : null) ??
+      checkRunTarget ??
+      (check?.checkRunId ? { repoSlug: jobInfo.repoSlug, checkRunId: String(check.checkRunId) } : null);
+
+    if (!checkRunTarget?.checkRunId) {
+      return {
+        status: "lookup_error",
+        checkRunId: null,
+        httpStatus: jobRes.statusCode ?? 200,
+        errorKind: "missing_check_run_id",
+        reason: `Actions job ${jobInfo.jobId} did not provide a check_run_url or check_run_id; refusing to guess Check Run ID from Job ID.`,
+      };
+    }
+  } else if (check?.checkRunId && check?.repoSlug) {
+    if (Array.isArray(check?.steps) && check.steps.length > 0) {
+      return {
+        status: "failed",
+        checkRunId: String(check.checkRunId),
+        httpStatus: null,
+        errorKind: null,
+        reason: "Check run executed steps before failing.",
+      };
+    }
+    checkRunTarget = { repoSlug: String(check.repoSlug), checkRunId: String(check.checkRunId) };
   }
+
+  if (!checkRunTarget?.checkRunId || !checkRunTarget?.repoSlug) {
+    return {
+      status: "lookup_error",
+      checkRunId: null,
+      httpStatus: null,
+      errorKind: "missing_check_run_id",
+      reason: "No valid Check Run ID could be determined from check metadata.",
+    };
+  }
+
+  if (Array.isArray(check?.steps) && check.steps.length > 0) {
+    return {
+      status: "failed",
+      checkRunId: checkRunTarget.checkRunId,
+      httpStatus: null,
+      errorKind: null,
+      reason: "Check run executed steps before failing.",
+    };
+  }
+
+  let annRes;
+  try {
+    annRes = ghApi(`repos/${checkRunTarget.repoSlug}/check-runs/${checkRunTarget.checkRunId}/annotations`, { cwd });
+  } catch (error) {
+    return {
+      status: "lookup_error",
+      checkRunId: checkRunTarget.checkRunId,
+      httpStatus: null,
+      errorKind: "network",
+      reason: `Check Run annotations lookup failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+
+  if (!annRes?.ok) {
+    const errText = `${annRes?.body ?? ""}\n${annRes?.stderr ?? ""}`;
+    if ((annRes?.statusCode === 402 || annRes?.statusCode === 403) && isUnavailableMessage(errText)) {
+      return {
+        status: "unavailable",
+        checkRunId: checkRunTarget.checkRunId,
+        httpStatus: annRes.statusCode,
+        errorKind: null,
+        reason: "Check Run annotations blocked by billing/quota or Actions disabled.",
+      };
+    }
+    return {
+      status: "lookup_error",
+      checkRunId: checkRunTarget.checkRunId,
+      httpStatus: annRes?.statusCode ?? null,
+      errorKind: annRes?.errorKind ?? "api_error",
+      reason: `Check Run annotations lookup failed (HTTP ${annRes?.statusCode ?? "unknown"}, kind=${annRes?.errorKind ?? "api_error"}).`,
+    };
+  }
+
+  let annotations;
+  try {
+    annotations = JSON.parse(annRes.body);
+  } catch {
+    return {
+      status: "lookup_error",
+      checkRunId: checkRunTarget.checkRunId,
+      httpStatus: annRes.statusCode ?? 200,
+      errorKind: "invalid_json",
+      reason: "Check Run annotations response was not valid JSON.",
+    };
+  }
+
+  if (
+    Array.isArray(annotations) &&
+    annotations.some((ann) => isUnavailableMessage(ann?.message) || isUnavailableMessage(ann?.title))
+  ) {
+    return {
+      status: "unavailable",
+      checkRunId: checkRunTarget.checkRunId,
+      httpStatus: annRes.statusCode ?? 200,
+      errorKind: null,
+      reason: "Check Run annotation confirmed CI unavailability (billing/quota/disabled).",
+    };
+  }
+
+  return {
+    status: "failed",
+    checkRunId: checkRunTarget.checkRunId,
+    httpStatus: annRes.statusCode ?? 200,
+    errorKind: null,
+    reason: "Check Run failed without CI unavailability evidence.",
+  };
 };
 
 const inspectPrMergeReadiness = (prRef, cwd) => {
   try {
     const ghArgs = ["pr", "view"];
     if (prRef) ghArgs.push(prRef);
-    ghArgs.push("--json", "isDraft,state,mergeable,mergeStateStatus,statusCheckRollup");
+    ghArgs.push("--json", "isDraft,state,mergeable,mergeStateStatus,headRefOid,statusCheckRollup");
     const raw = execFileSync("gh", ghArgs, {
       cwd,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
     const parsed = JSON.parse(raw);
+    const hasRollupArray = Array.isArray(parsed?.statusCheckRollup);
     return {
       ok: true,
+      prQueryOk: true,
+      ciQueryOk: hasRollupArray,
       isDraft: Boolean(parsed?.isDraft),
       state: parsed?.state ?? "OPEN",
       mergeable: parsed?.mergeable ?? null,
       mergeStateStatus: parsed?.mergeStateStatus ?? null,
-      ciQueryFailed: parsed?.statusCheckRollup === undefined,
-      checks: Array.isArray(parsed?.statusCheckRollup) ? parsed.statusCheckRollup : [],
+      headRefOid: parsed?.headRefOid ?? null,
+      ciQueryFailed: !hasRollupArray,
+      checks: hasRollupArray ? parsed.statusCheckRollup : null,
     };
   } catch {
-    return { ok: false, isDraft: false, state: "UNKNOWN", checks: [] };
+    return { ok: false, prQueryOk: false, ciQueryOk: false, isDraft: false, state: "UNKNOWN", checks: null };
   }
 };
 
@@ -268,10 +569,13 @@ const FAILING_CONCLUSIONS = new Set([
   "STALE",
 ]);
 
-const isCheckExplicitlyUnavailable = (check, { cwd } = {}) => {
-  if (!check || typeof check !== "object") return false;
+const evaluateCheckUnavailability = (check, { cwd, ghApi } = {}) => {
+  if (!check || typeof check !== "object") return { status: "failed" };
   if (check.unavailable === true || check.billingBlocked === true || check.ciDisabled === true) {
-    return true;
+    if (Array.isArray(check.steps) && check.steps.length > 0) {
+      return { status: "failed" };
+    }
+    return { status: "unavailable" };
   }
   const texts = [
     check.message,
@@ -285,27 +589,49 @@ const isCheckExplicitlyUnavailable = (check, { cwd } = {}) => {
   ];
   if (texts.some((t) => isUnavailableMessage(t))) {
     if (Array.isArray(check.steps) && check.steps.length > 0) {
-      return false;
+      return { status: "failed" };
     }
-    return true;
+    return { status: "unavailable" };
   }
   const conclusion = String(check.conclusion ?? "").toUpperCase();
-  if ((conclusion === "FAILURE" || conclusion === "STARTUP_FAILURE") && cwd && check.detailsUrl) {
-    return inspectCheckRunUnavailableViaGh(check, cwd);
+  if (
+    (conclusion === "FAILURE" || conclusion === "STARTUP_FAILURE") &&
+    (check.detailsUrl || check.check_run_url || check.checkRunId) &&
+    (cwd || ghApi)
+  ) {
+    return inspectCheckRunUnavailableViaGh(check, { cwd, ghApi });
   }
-  return false;
+  return { status: "failed" };
 };
 
-export const classifyCiStatus = (prState, { cwd } = {}) => {
-  if (!prState || prState.ok === false) {
+export const classifyCiStatus = (prState, { cwd, ghApi, expectedHeadSha = null } = {}) => {
+  if (!prState || prState.ok === false || prState.prQueryOk === false) {
     return {
       status: "UNKNOWN",
+      queryErrorType: "pr_query_failed",
       reason: "PR status query failed or PR could not be verified.",
       passing: [],
       failing: [],
       pending: [],
       unavailable: [],
       unknown: [],
+      lookupErrors: [],
+    };
+  }
+
+  const targetSha = expectedHeadSha ?? prState.expectedHeadSha ?? prState.headRefOid ?? prState.headSha ?? null;
+  const ciSha = prState.ciHeadSha ?? null;
+  if (targetSha && ciSha && targetSha !== ciSha) {
+    return {
+      status: "UNKNOWN",
+      queryErrorType: "stale_commit_ci",
+      reason: `CI results belong to stale commit ${ciSha} instead of current commit ${targetSha}.`,
+      passing: [],
+      failing: [],
+      pending: [],
+      unavailable: [],
+      unknown: [],
+      lookupErrors: [],
     };
   }
 
@@ -315,10 +641,17 @@ export const classifyCiStatus = (prState, { cwd } = {}) => {
   const pending = [];
   const unavailable = [];
   const unknown = [];
+  const lookupErrors = [];
 
   if (checks) {
     for (const check of checks) {
       const name = check?.name || check?.context || "check";
+      const checkSha = check?.headSha ?? check?.commitSha ?? null;
+      if (targetSha && checkSha && checkSha !== targetSha) {
+        unknown.push(name);
+        continue;
+      }
+
       const conclusion = String(check?.conclusion ?? "").toUpperCase();
       const status = String(check?.status ?? "").toUpperCase();
       const checkState = String(check?.state ?? "").toUpperCase();
@@ -335,9 +668,13 @@ export const classifyCiStatus = (prState, { cwd } = {}) => {
         continue;
       }
 
-      if (isCheckExplicitlyUnavailable(check, { cwd })) {
+      const unavailEval = evaluateCheckUnavailability(check, { cwd, ghApi });
+      if (unavailEval.status === "unavailable") {
         unavailable.push(name);
         continue;
+      }
+      if (unavailEval.status === "lookup_error") {
+        lookupErrors.push({ name, ...unavailEval });
       }
 
       if (
@@ -361,58 +698,71 @@ export const classifyCiStatus = (prState, { cwd } = {}) => {
     }
   }
 
-  // Real test failures are NEVER ignored, even if CI query partially failed or other jobs are unavailable.
+  // Priority 1: Any known FAIL blocks merge, regardless of other PASS / UNAVAILABLE / query results.
   if (failing.length > 0) {
     return {
       status: "FAIL",
+      queryErrorType: null,
       reason: `Failing CI check(s): ${failing.join(", ")}.`,
       passing,
       failing,
       pending,
       unavailable,
       unknown,
+      lookupErrors,
     };
   }
 
-  // In-progress checks must NEVER be treated as UNAVAILABLE; always wait.
+  // Priority 2: Any PENDING check requires waiting (never treated as UNAVAILABLE).
   if (pending.length > 0) {
     return {
       status: "PENDING",
+      queryErrorType: null,
       reason: `Pending CI check(s): ${pending.join(", ")}.`,
       passing,
       failing,
       pending,
       unavailable,
       unknown,
+      lookupErrors,
     };
   }
 
-  // CI query failure vs UNAVAILABLE distinction: if CI status query failed or returned unrecognized check states, classify as UNKNOWN.
-  if (prState.ciQueryFailed || prState.checksError || checks === null || unknown.length > 0) {
+  // Priority 3 (safety): CI query failure or unrecognized check state -> UNKNOWN (never treated as UNAVAILABLE or NO_TESTS).
+  if (
+    prState.ciQueryFailed === true ||
+    prState.ciQueryOk === false ||
+    Boolean(prState.checksError) ||
+    checks === null ||
+    unknown.length > 0
+  ) {
     return {
       status: "UNKNOWN",
+      queryErrorType: "ci_query_failed",
       reason:
         unknown.length > 0
-          ? `Unrecognized CI check state(s): ${unknown.join(", ")}.`
+          ? `Unrecognized or stale CI check state(s): ${unknown.join(", ")}.`
           : "CI check status could not be queried reliably.",
       passing,
       failing,
       pending,
       unavailable,
       unknown,
+      lookupErrors,
     };
   }
 
-  // Explicit repository/account-level CI unavailability (Actions disabled, billing/quota block).
+  // Priority 4/5: If any check or repo/account-level signal is UNAVAILABLE (even alongside PASS checks), classify as UNAVAILABLE (NOT PASS).
   if (
     prState.ciUnavailable === true ||
     prState.actionsDisabled === true ||
     prState.billingLimited === true ||
     isUnavailableMessage(prState.ciUnavailableReason) ||
-    (unavailable.length > 0 && passing.length === 0)
+    unavailable.length > 0
   ) {
     return {
       status: "UNAVAILABLE",
+      queryErrorType: null,
       reason:
         prState.ciUnavailableReason ||
         (unavailable.length > 0
@@ -423,30 +773,49 @@ export const classifyCiStatus = (prState, { cwd } = {}) => {
       pending,
       unavailable,
       unknown,
+      lookupErrors,
     };
   }
 
-  // No tests / no CI checks configured on project.
-  if (checks.length === 0 || prState.noTests === true) {
+  // Priority 6: Explicitly no checks configured on project -> NO_TESTS (unless configured checks were expected).
+  if (checks.length === 0) {
+    if ((prState.hasConfiguredChecks === true || Number(prState.expectedChecksCount ?? 0) > 0) && prState.noTests !== true) {
+      return {
+        status: "UNKNOWN",
+        queryErrorType: "missing_expected_checks",
+        reason: "Project has configured CI checks, but no check results were returned.",
+        passing,
+        failing,
+        pending,
+        unavailable,
+        unknown,
+        lookupErrors,
+      };
+    }
     return {
       status: "NO_TESTS",
+      queryErrorType: null,
       reason: "No CI checks or tests configured for this project.",
       passing,
       failing,
       pending,
       unavailable,
       unknown,
+      lookupErrors,
     };
   }
 
+  // All checks completed cleanly -> PASS
   return {
     status: "PASS",
+    queryErrorType: null,
     reason: "All CI checks passed.",
     passing,
     failing,
     pending,
     unavailable,
     unknown,
+    lookupErrors,
   };
 };
 
@@ -457,28 +826,93 @@ export const evaluateConflictResolution = ({
   preservedChanges = true,
   withinIssueScope = true,
   headCommitUpdated = true,
+  previousHeadSha = null,
+  newHeadSha = null,
+  ciCommitSha = null,
   localChecksPassed = true,
+  prState = null,
   ciStateAfterResolution = null,
   autoMergeOnCiPass = true,
+  cwd,
+  ghApi,
 } = {}) => {
+  const isPrReady = () => {
+    if (!prState) return true;
+    if (prState.ok === false || prState.prQueryOk === false) return false;
+    const lifecycle = String(prState.state ?? "OPEN").toUpperCase();
+    if (lifecycle !== "OPEN" || prState.isDraft === true || Number(prState.unresolvedBlockers ?? 0) > 0) {
+      return false;
+    }
+    return true;
+  };
+
   if (!hasConflicts) {
-    const ci = ciStateAfterResolution ? classifyCiStatus(ciStateAfterResolution) : { status: "PASS" };
+    const prReady = isPrReady();
+    if (!prReady) {
+      return {
+        conflictStatus: "none",
+        conflictsCleared: true,
+        prReady: false,
+        action: "block",
+        canMerge: false,
+        ciStatus: "UNKNOWN",
+        reason: "No conflicts detected, but PR is not in a mergeable OPEN/non-Draft/unblocked state.",
+      };
+    }
+    if (!ciStateAfterResolution) {
+      return {
+        conflictStatus: "none",
+        conflictsCleared: true,
+        prReady: true,
+        action: "block",
+        canMerge: false,
+        ciStatus: "UNKNOWN",
+        reason: "No conflicts detected, but CI state was not provided (UNKNOWN).",
+      };
+    }
+    const ci = classifyCiStatus(ciStateAfterResolution, {
+      cwd,
+      ghApi,
+      expectedHeadSha: newHeadSha ?? prState?.headRefOid ?? null,
+    });
     if (ci.status === "FAIL" || ci.status === "UNKNOWN") {
-      return { action: "block", canMerge: false, ciStatus: ci.status, reason: ci.reason };
+      return {
+        conflictStatus: "none",
+        conflictsCleared: true,
+        prReady: true,
+        action: "block",
+        canMerge: false,
+        ciStatus: ci.status,
+        reason: ci.reason,
+      };
     }
     if (ci.status === "PENDING") {
-      return { action: "wait", canMerge: false, ciStatus: ci.status, reason: ci.reason };
+      return {
+        conflictStatus: "none",
+        conflictsCleared: true,
+        prReady: true,
+        action: "wait",
+        canMerge: false,
+        ciStatus: ci.status,
+        reason: ci.reason,
+      };
     }
     return {
+      conflictStatus: "none",
+      conflictsCleared: true,
+      prReady: true,
       action: autoMergeOnCiPass === false ? "manual_merge" : "merge",
       canMerge: autoMergeOnCiPass !== false,
       ciStatus: ci.status,
-      reason: "No conflicts detected; ready for merge evaluation.",
+      reason: `No conflicts detected; CI status is ${ci.status}.`,
     };
   }
 
   if (conflictType === "complex" || conflictType === "ambiguous" || conflictType === "design") {
     return {
+      conflictStatus: "complex",
+      conflictsCleared: false,
+      prReady: isPrReady(),
       action: "ask_user",
       canMerge: false,
       ciStatus: "UNKNOWN",
@@ -488,6 +922,9 @@ export const evaluateConflictResolution = ({
 
   if (!preservedChanges) {
     return {
+      conflictStatus: "unsafe",
+      conflictsCleared: false,
+      prReady: isPrReady(),
       action: "block",
       canMerge: false,
       ciStatus: "UNKNOWN",
@@ -497,6 +934,9 @@ export const evaluateConflictResolution = ({
 
   if (!withinIssueScope) {
     return {
+      conflictStatus: "out_of_scope",
+      conflictsCleared: false,
+      prReady: isPrReady(),
       action: "block",
       canMerge: false,
       ciStatus: "UNKNOWN",
@@ -506,6 +946,9 @@ export const evaluateConflictResolution = ({
 
   if (!resolved) {
     return {
+      conflictStatus: "unresolved",
+      conflictsCleared: false,
+      prReady: isPrReady(),
       action: "block",
       canMerge: false,
       ciStatus: "UNKNOWN",
@@ -515,6 +958,9 @@ export const evaluateConflictResolution = ({
 
   if (!localChecksPassed) {
     return {
+      conflictStatus: "resolved",
+      conflictsCleared: true,
+      prReady: isPrReady(),
       action: "block",
       canMerge: false,
       ciStatus: "FAIL",
@@ -522,8 +968,11 @@ export const evaluateConflictResolution = ({
     };
   }
 
-  if (!headCommitUpdated) {
+  if (!headCommitUpdated || (previousHeadSha && newHeadSha && previousHeadSha === newHeadSha)) {
     return {
+      conflictStatus: "resolved",
+      conflictsCleared: true,
+      prReady: isPrReady(),
       action: "block",
       canMerge: false,
       ciStatus: "UNKNOWN",
@@ -531,9 +980,63 @@ export const evaluateConflictResolution = ({
     };
   }
 
-  const ci = classifyCiStatus(ciStateAfterResolution ?? { ok: true, checks: [] });
+  if (!ciStateAfterResolution) {
+    return {
+      conflictStatus: "resolved",
+      conflictsCleared: true,
+      prReady: isPrReady(),
+      action: "block",
+      canMerge: false,
+      ciStatus: "UNKNOWN",
+      reason: "Blocked: CI state for the conflict-resolution commit was not provided (UNKNOWN).",
+    };
+  }
+
+  const effectiveCiSha =
+    ciCommitSha ??
+    ciStateAfterResolution?.headRefOid ??
+    ciStateAfterResolution?.headSha ??
+    ciStateAfterResolution?.commitSha ??
+    null;
+
+  if (
+    (previousHeadSha && effectiveCiSha && effectiveCiSha === previousHeadSha) ||
+    (newHeadSha && effectiveCiSha && effectiveCiSha !== newHeadSha)
+  ) {
+    return {
+      conflictStatus: "resolved",
+      conflictsCleared: true,
+      prReady: isPrReady(),
+      action: "block",
+      canMerge: false,
+      ciStatus: "UNKNOWN",
+      reason: `Blocked: CI result commit (${effectiveCiSha}) does not match the new conflict-resolution commit (${newHeadSha ?? "unknown"}).`,
+    };
+  }
+
+  const prReady = isPrReady();
+  if (!prReady) {
+    return {
+      conflictStatus: "resolved",
+      conflictsCleared: true,
+      prReady: false,
+      action: "block",
+      canMerge: false,
+      ciStatus: "UNKNOWN",
+      reason: "Blocked: conflicts resolved, but PR is not OPEN/non-Draft/unblocked.",
+    };
+  }
+
+  const ci = classifyCiStatus(ciStateAfterResolution, {
+    cwd,
+    ghApi,
+    expectedHeadSha: newHeadSha ?? effectiveCiSha ?? null,
+  });
   if (ci.status === "FAIL") {
     return {
+      conflictStatus: "resolved",
+      conflictsCleared: true,
+      prReady: true,
       action: "block",
       canMerge: false,
       ciStatus: "FAIL",
@@ -542,6 +1045,9 @@ export const evaluateConflictResolution = ({
   }
   if (ci.status === "PENDING") {
     return {
+      conflictStatus: "resolved",
+      conflictsCleared: true,
+      prReady: true,
       action: "wait",
       canMerge: false,
       ciStatus: "PENDING",
@@ -550,6 +1056,9 @@ export const evaluateConflictResolution = ({
   }
   if (ci.status === "UNKNOWN") {
     return {
+      conflictStatus: "resolved",
+      conflictsCleared: true,
+      prReady: true,
       action: "block",
       canMerge: false,
       ciStatus: "UNKNOWN",
@@ -559,6 +1068,9 @@ export const evaluateConflictResolution = ({
 
   // PASS, NO_TESTS, or UNAVAILABLE
   return {
+    conflictStatus: "resolved",
+    conflictsCleared: true,
+    prReady: true,
     action: autoMergeOnCiPass === false ? "manual_merge" : "merge",
     canMerge: autoMergeOnCiPass !== false,
     ciStatus: ci.status,
@@ -566,7 +1078,18 @@ export const evaluateConflictResolution = ({
   };
 };
 
-const evaluatePrMerge = (args, { cwd, prState, autoMergeOnCiPass }) => {
+const evaluatePrMerge = (
+  args,
+  {
+    cwd,
+    prState,
+    autoMergeOnCiPass,
+    mergeMethod = "squash",
+    mergeMethodExplicit = false,
+    allowedMergeMethods = null,
+    ghApi,
+  },
+) => {
   if (autoMergeOnCiPass === false) {
     return {
       decision: "deny",
@@ -583,9 +1106,24 @@ const evaluatePrMerge = (args, { cwd, prState, autoMergeOnCiPass }) => {
     };
   }
 
+  const cliMethods = extractCliMergeMethods(args);
+  const methodResolution = resolveEffectiveMergeMethod({
+    cliMethods,
+    configMethod: mergeMethod,
+    configExplicit: mergeMethodExplicit,
+    allowedMethods: allowedMergeMethods,
+  });
+  if (!methodResolution.ok) {
+    return {
+      decision: "deny",
+      ciStatus: "INVALID_MERGE_METHOD",
+      reason: methodResolution.reason,
+    };
+  }
+
   const prRef = extractPrMergeTarget(args);
   const state = prState ?? inspectPrMergeReadiness(prRef, cwd);
-  if (!state || state.ok === false) {
+  if (!state || state.ok === false || state.prQueryOk === false) {
     return {
       decision: "deny",
       ciStatus: "UNKNOWN",
@@ -641,7 +1179,7 @@ const evaluatePrMerge = (args, { cwd, prState, autoMergeOnCiPass }) => {
     };
   }
 
-  const ci = classifyCiStatus(state, { cwd });
+  const ci = classifyCiStatus(state, { cwd, ghApi });
 
   if (ci.status === "FAIL") {
     return {
@@ -669,7 +1207,7 @@ const evaluatePrMerge = (args, { cwd, prState, autoMergeOnCiPass }) => {
   }
 
   // PASS, NO_TESTS, and UNAVAILABLE are allowed to proceed when PR is OPEN, non-Draft, and conflict-free.
-  return { decision: "allow", ciStatus: ci.status };
+  return { decision: "allow", ciStatus: ci.status, mergeMethod: methodResolution.method };
 };
 
 const runGit = (args, cwd) => {
@@ -742,7 +1280,7 @@ export const evaluateBashCommand = (command, options = {}) => {
   const segments = splitSubcommands(command);
 
   const ghConfig = readGithubConfig(cwd);
-  let lastMergeStatus = null;
+  let lastMergeResult = null;
 
   for (const segment of segments) {
     const rawTokens = tokenize(segment);
@@ -755,11 +1293,15 @@ export const evaluateBashCommand = (command, options = {}) => {
         cwd,
         prState: options.prState,
         autoMergeOnCiPass: options.autoMergeOnCiPass ?? ghConfig.autoMergeOnCiPass,
+        mergeMethod: options.mergeMethod ?? ghConfig.mergeMethod,
+        mergeMethodExplicit: options.mergeMethodExplicit ?? ghConfig.mergeMethodExplicit,
+        allowedMergeMethods: options.allowedMergeMethods ?? null,
+        ghApi: options.ghApi,
       });
       if (mergeResult.decision === "deny") {
         return mergeResult;
       }
-      lastMergeStatus = mergeResult.ciStatus;
+      lastMergeResult = mergeResult;
       continue;
     }
     if (
@@ -848,7 +1390,9 @@ export const evaluateBashCommand = (command, options = {}) => {
     }
   }
 
-  return lastMergeStatus ? { decision: "allow", ciStatus: lastMergeStatus } : { decision: "allow" };
+  return lastMergeResult
+    ? { decision: "allow", ciStatus: lastMergeResult.ciStatus, mergeMethod: lastMergeResult.mergeMethod }
+    : { decision: "allow" };
 };
 
 export const handleGuardHookInput = (input, options = {}) => {
